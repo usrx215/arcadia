@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interlock Editor</title>
+    <style>
+        :root { --bg: #1a1a1a; --panel: #2d2d2d; --hero: #e74c3c; --text: #eee; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); display: flex; flex-direction: column; align-items: center; padding: 20px; user-select: none; }
+        .layout { display: flex; gap: 20px; align-items: flex-start; }
+        .grid-container { position: relative; background: #111; border: 4px solid #444; display: grid; grid-template-columns: repeat(6, 60px); grid-template-rows: repeat(6, 60px); }
+        .cell { width: 60px; height: 60px; border: 1px solid #333; box-sizing: border-box; }
+        .exit-lane { background: rgba(46, 204, 113, 0.05); }
+        .block { position: absolute; border-radius: 4px; cursor: move; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        .handle { position: absolute; background: rgba(255,255,255,0.3); display: flex; align-items: center; justify-content: center; font-size: 10px; cursor: pointer; }
+        .h-handle { width: 16px; height: 100%; top: 0; }
+        .v-handle { width: 100%; height: 16px; left: 0; }
+        .left { left: 0; } .right { right: 0; } .top { top: 0; } .bottom { bottom: 0; }
+        #ghost { position: absolute; pointer-events: none; opacity: 0.3; border: 2px dashed white; display: none; }
+        .sidebar { background: var(--panel); padding: 15px; border-radius: 8px; width: 180px; }
+        .chip { height: 35px; border-radius: 4px; cursor: pointer; border: 2px solid transparent; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; margin-bottom: 5px; }
+        .chip.active { border-color: white; }
+        textarea { width: 500px; height: 80px; background: #000; color: #0f0; border: 1px solid #444; padding: 10px; font-family: monospace; margin-top: 20px; word-break: break-all; }
+        .btn { background: #444; color: white; border: none; padding: 10px; cursor: pointer; width: 100%; margin-top: 5px; border-radius: 4px; }
+        .btn:hover { background: #555; }
+    </style>
+</head>
+<body>
+    <h1>Interlock Editor</h1>
+    <div class="layout">
+        <div class="grid-container" id="grid"><div id="ghost"></div></div>
+        <div class="sidebar">
+            <div id="palette">
+                <div class="chip active" data-color="hero" style="background:#e74c3c">HERO</div>
+                <div class="chip" data-color="c1" style="background:#3498db">BLUE</div>
+                <div class="chip" data-color="c2" style="background:#f1c40f;color:#000">GOLD</div>
+                <div class="chip" data-color="c3" style="background:#9b59b6">PURPLE</div>
+                <div class="chip" data-color="c4" style="background:#1abc9c">TEAL</div>
+            </div>
+            <select id="orient" class="btn"><option value="h">Horizontal</option><option value="v">Vertical</option></select>
+            <button class="btn" onclick="copyCode()">Copy One-Liner</button>
+            <button class="btn" style="color:#ff7675" onclick="blocks=[];render();">Reset</button>
+        </div>
+    </div>
+    <textarea id="output" readonly placeholder="Snippet will appear here..."></textarea>
+
+<script>
+    const gridEl = document.getElementById('grid'), ghost = document.getElementById('ghost'), output = document.getElementById('output'), orient = document.getElementById('orient');
+    let blocks = [], selectedColor = 'hero', cellSize = 60;
+
+    for(let i=0; i<36; i++) {
+        const c = document.createElement('div'); c.className = 'cell';
+        if(Math.floor(i/6) === 2) c.classList.add('exit-lane');
+        gridEl.appendChild(c);
+    }
+
+    document.getElementById('palette').onclick = (e) => {
+        if(!e.target.classList.contains('chip')) return;
+        document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+        e.target.classList.add('active');
+        selectedColor = e.target.dataset.color;
+        if(selectedColor === 'hero') orient.value = 'h';
+    };
+
+    gridEl.onmousemove = (e) => {
+        const rect = gridEl.getBoundingClientRect(), col = Math.floor((e.clientX - rect.left) / cellSize), row = Math.floor((e.clientY - rect.top) / cellSize);
+        if(col >= 0 && col < 6 && row >= 0 && row < 6) {
+            Object.assign(ghost.style, { display: 'block', width: cellSize+'px', height: cellSize+'px', left: (col*cellSize)+'px', top: (row*cellSize)+'px', backgroundColor: getHex(selectedColor) });
+        }
+    };
+
+    gridEl.onclick = (e) => {
+        if(e.target !== gridEl && !e.target.classList.contains('cell')) return;
+        const rect = gridEl.getBoundingClientRect(), col = Math.floor((e.clientX - rect.left) / cellSize), row = Math.floor((e.clientY - rect.top) / cellSize);
+        if(selectedColor === 'hero' && row !== 2) return alert("Hero must be in Row 2");
+        blocks.push({ id: selectedColor === 'hero' ? 'hero' : 'b'+Date.now(), color: selectedColor, type: orient.value, r: row, c: col, len: 2 });
+        render();
+    };
+
+    function render() {
+        document.querySelectorAll('.block').forEach(b => b.remove());
+        blocks.forEach((b, idx) => {
+            const el = document.createElement('div');
+            el.className = 'block';
+            Object.assign(el.style, { backgroundColor: getHex(b.color), width: (b.type === 'h' ? b.len*cellSize : cellSize)+'px', height: (b.type === 'v' ? b.len*cellSize : cellSize)+'px', left: (b.c*cellSize)+'px', top: (b.r*cellSize)+'px' });
+            el.oncontextmenu = (e) => { e.preventDefault(); blocks.splice(idx, 1); render(); };
+            addH(el, b, b.type === 'h' ? 'left' : 'top');
+            addH(el, b, b.type === 'h' ? 'right' : 'bottom');
+            gridEl.appendChild(el);
+        });
+        output.value = JSON.stringify(blocks.map(({id, type, len, r, c, color}) => ({id, type, len, r, c, color})));
+    }
+
+    function addH(p, b, d) {
+        const h = document.createElement('div'); h.className = `handle ${d} ${b.type}-handle`; h.innerText = (d==='left'||d==='top')?'-':'+';
+        h.onclick = (e) => { e.stopPropagation(); 
+            if(d==='right'||d==='bottom') { b.len = b.len === 2 ? 3 : 2; }
+            else { if(b.len === 2) { b.len = 3; b.type==='h'?b.c=Math.max(0,b.c-1):b.r=Math.max(0,b.r-1); } else { b.len = 2; b.type==='h'?b.c=Math.min(5,b.c+1):b.r=Math.min(5,b.r+1); } }
+            if(b.type==='h') b.c=Math.min(b.c, 6-b.len); else b.r=Math.min(b.r, 6-b.len);
+            render();
+        };
+        p.appendChild(h);
+    }
+    function getHex(n) { return { hero: '#e74c3c', c1: '#3498db', c2: '#f1c40f', c3: '#9b59b6', c4: '#1abc9c' }[n]; }
+    function copyCode() { output.select(); document.execCommand('copy'); }
+    render();
+</script>
+</body>
+</html>

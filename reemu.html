@@ -1,0 +1,713 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>ArEmu - Emulator + Flash</title>
+<link rel="icon" href="images/emujs.png">
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+
+<style>
+:root { --bg:#111; --panel:#222; --accent:#20b2aa; color-scheme: dark; }
+html,body { height:100%; margin:0; font-family:sans-serif; background:var(--bg); }
+
+/* top bar */
+#controls {
+  padding:10px;
+  background:var(--panel);
+  display:flex;
+  gap:10px;
+  align-items:center;
+  color:#fff;
+  flex-wrap:wrap;
+}
+label { font-size:14px; display:flex; gap:8px; align-items:center; }
+.status-text { font-size:14px; color:#aaa; margin-left:auto; }
+
+#btn-patcher {
+  background: transparent;
+  border: 1.5px solid var(--accent);
+  color: var(--accent);
+  font-size: 13px;
+  font-family: sans-serif;
+  padding: 5px 14px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+  white-space: nowrap;
+}
+#btn-patcher:hover { background: var(--accent); color: #111; }
+
+/* game area */
+#game {
+  width:100%;
+  height:calc(100vh - 60px);
+  border:2px dashed transparent;
+  transition:0.2s;
+}
+#game.drag-over { border-color:var(--accent); background:#eafffb22; }
+
+/* rom patcher modal */
+#patcher-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.72);
+  z-index: 9999;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  box-sizing: border-box;
+}
+#patcher-overlay.open { display: flex; }
+
+#patcher-modal {
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 10px;
+  width: 100%;
+  max-width: 820px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 24px;
+  box-sizing: border-box;
+  position: relative;
+  color: #e0e0e0;
+  font-family: sans-serif;
+}
+
+#patcher-modal h2 {
+  margin: 0 0 18px;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: .03em;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+#patcher-modal h2 svg { flex-shrink: 0; }
+
+#patcher-close {
+  position: absolute;
+  top: 16px; right: 18px;
+  background: transparent;
+  border: none;
+  color: #888;
+  font-size: 22px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+  transition: color .15s;
+}
+#patcher-close:hover { color: #fff; }
+
+/* panels row */
+.p-panels {
+  display: grid;
+  grid-template-columns: repeat(3,1fr);
+  gap: 12px;
+  margin-bottom: 18px;
+}
+@media (max-width: 600px) { .p-panels { grid-template-columns: 1fr; } }
+
+.p-panel {
+  background: #242424;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 14px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.p-panel-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  margin-bottom: 2px;
+}
+.p-panel.rom  .p-panel-title { color: #6699ff; }
+.p-panel.ips  .p-panel-title { color: #ff7777; }
+.p-panel.out  .p-panel-title { color: var(--accent); }
+
+.p-btn {
+  font-family: sans-serif;
+  font-size: 13px;
+  padding: 7px 0;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  transition: filter .15s;
+}
+.p-btn:hover { filter: brightness(1.15); }
+.p-btn.rom { background: #334488; color: #aac4ff; }
+.p-btn.ips { background: #553333; color: #ffaaaa; }
+.p-btn.out { background: #1d5c52; color: #7fffed; }
+.p-btn:disabled { opacity: .4; cursor: default; filter: none; }
+
+.p-drop-hint {
+  font-size: 11px;
+  color: #555;
+  text-align: center;
+}
+
+.p-info {
+  font-family: monospace;
+  font-size: 11px;
+  color: #999;
+  background: #111;
+  border-radius: 5px;
+  padding: 8px;
+  min-height: 54px;
+  word-break: break-all;
+  line-height: 1.6;
+  flex: 1;
+}
+
+/* patcher - snes options */
+.p-option {
+  font-size: 12px;
+  color: #bbb;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.p-option input[type=checkbox] { accent-color: var(--accent); cursor: pointer; }
+
+/* tip toggle */
+.p-tip-btn {
+  background: #333;
+  border: none;
+  color: #888;
+  font-size: 11px;
+  border-radius: 4px;
+  padding: 1px 6px;
+  cursor: pointer;
+}
+.p-tip-btn:hover { color: #ccc; }
+.p-tip-text {
+  display: none;
+  font-size: 11px;
+  color: #888;
+  background: #1e1e1e;
+  border-left: 2px solid #444;
+  padding: 6px 8px;
+  border-radius: 0 4px 4px 0;
+  line-height: 1.5;
+}
+
+/* drag highlight */
+.p-panel.drag-over { border-color: var(--accent); background: #1d2e2c; }
+
+/* guide */
+.p-guide {
+  font-size: 12px;
+  color: #666;
+  line-height: 1.7;
+  border-top: 1px solid #2a2a2a;
+  padding-top: 14px;
+  margin-top: 4px;
+}
+.p-guide a { color: var(--accent); text-decoration: none; }
+.p-guide a:hover { text-decoration: underline; }
+.p-guide ol, .p-guide ul { padding-left: 18px; margin: 6px 0; }
+.p-guide li { margin-bottom: 3px; }
+</style>
+</head>
+<body>
+
+<div id="controls">
+  <label>
+    Core:
+    <select id="core">
+      <option value="fceumm">NES - fceumm</option>
+      <option value="nestopia">NES - nestopia</option>
+      <option value="snes9x">SNES - snes9x</option>
+      <option value="gambatte">GB/GBC - gambatte</option>
+      <option value="mgba">GBA - mgba</option>
+      <option value="beetle_vb">VB - beetle_vb</option>
+      <option value="melonds">NDS - melonDS</option>
+      <option value="mupen64plus_next">N64 - Mupen64Plus Next</option>
+      <option value="parallel_n64">N64 - ParaLLEl N64</option>
+      <option value="pcsx_rearmed">PSX - PCSX Rearmed</option>
+      <option value="ppsspp">PSP - PPSSPP</option>
+      <option value="genesis_plus_gx">Genesis - Genesis Plus GX</option>
+      <option value="smsplus">SMS - SMSPlus</option>
+      <option value="stella2014">Atari 2600 - Stella</option>
+      <option value="prosystem">Atari 7800 - ProSystem</option>
+      <option value="a5200">Atari 5200 - a5200</option>
+      <option value="mednafen_pce">PC Engine - Mednafen</option>
+      <option value="mame2003_plus">Arcade - MAME2003+</option>
+    </select>
+  </label>
+
+  <label>
+    Accent:
+    <input type="color" id="color" value="#20b2aa">
+  </label>
+
+  <label>
+    Game File:
+    <input type="file" id="gameFile"
+      accept=".nes,.smc,.sfc,.snes,.gb,.gbc,.gba,.vb,.nds,.n64,.z64,.v64,.iso,.bin,.gen,.md,.sms,.gg,.a26,.a78,.a52,.pce,.cso,.pbp,.swf" />
+  </label>
+
+  <button id="btn-patcher" onclick="openPatcher()">&#9881; ROM Patcher</button>
+
+  <span class="status-text" id="status"></span>
+</div>
+
+<div id="game"></div>
+
+<!-- patcher -->
+<div id="patcher-overlay" onclick="overlayClick(event)">
+  <div id="patcher-modal">
+    <button id="patcher-close" onclick="closePatcher()" title="Close">&times;</button>
+
+    <h2>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+      </svg>
+      ROM Patcher
+    </h2>
+
+    <div class="p-panels">
+
+      <!-- ROM panel -->
+      <div class="p-panel rom" id="p-panel-rom"
+           ondrop="p_drop_rom(event)" ondragover="p_dragover(event,'p-panel-rom')"
+           ondragenter="p_dragenter(event,'p-panel-rom')" ondragleave="p_dragleave(event,'p-panel-rom')">
+        <div class="p-panel-title">ROM</div>
+        <button class="p-btn rom" onclick="p_browse_rom()">Browse&hellip;</button>
+        <input type="file" id="p-file-rom" style="display:none" onchange="p_on_rom()">
+        <p class="p-drop-hint">or drag ROM here</p>
+
+        <div class="p-option" id="p-snes-header-opt" style="display:none">
+          <input type="checkbox" id="p-snes-header-chk" checked onchange="p_snes_strip(this)">
+          <span>Remove SNES header</span>
+          <button class="p-tip-btn" onclick="p_tip(this)">?</button>
+          <div class="p-tip-text">A 512-byte copier header was detected. Normally it should be removed before patching.</div>
+        </div>
+
+        <div class="p-option" id="p-snes-headerless-opt" style="display:none">
+          <input type="checkbox" id="p-snes-headerless-chk" onchange="p_snes_fake(this)">
+          <span>Fake SNES header</span>
+          <button class="p-tip-btn" onclick="p_tip(this)">?</button>
+          <div class="p-tip-text">Some older patches require a copier header. Temporarily adds one so a headered patch works on this headerless ROM.</div>
+        </div>
+
+        <div class="p-info" id="p-info-rom">No ROM loaded.</div>
+      </div>
+
+      <!-- IPS panel -->
+      <div class="p-panel ips" id="p-panel-ips"
+           ondrop="p_drop_ips(event)" ondragover="p_dragover(event,'p-panel-ips')"
+           ondragenter="p_dragenter(event,'p-panel-ips')" ondragleave="p_dragleave(event,'p-panel-ips')">
+        <div class="p-panel-title">Patch (IPS / BPS)</div>
+        <button class="p-btn ips" onclick="p_browse_ips()">Browse&hellip;</button>
+        <input type="file" id="p-file-ips" style="display:none" accept=".ips,.bps" onchange="p_on_ips()">
+        <p class="p-drop-hint">or drag patch here</p>
+        <div class="p-info" id="p-info-ips">No patch loaded.</div>
+      </div>
+
+      <!-- Result panel -->
+      <div class="p-panel out">
+        <div class="p-panel-title">Result</div>
+        <button class="p-btn out" id="p-dl-btn" onclick="p_download()" disabled>Download</button>
+        <p class="p-drop-hint">patched ROM output</p>
+        <div class="p-info" id="p-info-out">No result.</div>
+      </div>
+
+    </div>
+
+    <div class="p-guide">
+      How to use:
+      <ol>
+        <li>Load your base ROM (left panel). CRC / MD5 / SHA1 hashes are shown so you can verify you have the correct file.</li>
+        <li>Load the IPS or BPS patch (middle panel).</li>
+        <li>Download the patched ROM from the right panel. Everything runs locally — nothing is uploaded.</li>
+      </ol>
+      Useful links:
+      <ul>
+        <li><a href="https://www.romhacking.net/" target="_blank">ROMhacking.net</a> — large patch repository</li>
+        <li><a href="https://www.fantasyanime.com/patching" target="_blank">FantasyAnime patching tutorial</a></li>
+        <li><a href="https://www.romhacking.net/utilities/1040/" target="_blank">Floating IPS</a> — desktop patcher</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/@ruffle-rs/ruffle"></script>
+
+<script>
+const coreSelector = document.getElementById("core");
+const fileInput = document.getElementById("gameFile");
+const colorInput = document.getElementById("color");
+const statusText = document.getElementById("status");
+
+let loaderLoaded = false;
+let currentBlob = null;
+let currentMode = null;
+
+function recreateGameContainer() {
+  const old = document.getElementById("game");
+  const parent = old.parentNode;
+  old.remove();
+  const fresh = document.createElement("div");
+  fresh.id = "game";
+  fresh.style.width = "100%";
+  fresh.style.height = "calc(100vh - 60px)";
+  fresh.style.border = "2px dashed transparent";
+  fresh.style.transition = "0.2s";
+  parent.appendChild(fresh);
+  setupDragDrop(fresh);
+  return fresh;
+}
+
+function clearGame() {
+  if (currentBlob) { URL.revokeObjectURL(currentBlob); currentBlob = null; }
+  delete window.EJS_player; delete window.EJS_core;
+  delete window.EJS_gameUrl; delete window.EJS_gameName;
+  recreateGameContainer();
+  statusText.textContent = "";
+  currentMode = null;
+}
+
+function getExtension(filename) { return filename.split(".").pop().toLowerCase(); }
+
+function getCoreForExtension(ext) {
+  const map = {
+    nes:["fceumm","nestopia"],
+    smc:["snes9x"], sfc:["snes9x"], snes:["snes9x"],
+    gb:["gambatte"], gbc:["gambatte"], gba:["mgba"], vb:["beetle_vb"],
+    nds:["melonds"],
+    n64:["parallel_n64"], z64:["parallel_n64"], v64:["parallel_n64"],
+    iso:["pcsx_rearmed"], bin:["pcsx_rearmed"],
+    gen:["genesis_plus_gx"], md:["genesis_plus_gx"],
+    sms:["smsplus"], gg:["genesis_plus_gx"],
+    a26:["stella2014"], a78:["prosystem"], a52:["a5200"],
+    pce:["mednafen_pce"], cso:["ppsspp"], pbp:["ppsspp"]
+  };
+  return map[ext] || null;
+}
+
+function startEmulator(file, arrayBuffer) {
+  clearGame(); currentMode = "emu";
+  const ext = getExtension(file.name);
+  const validCores = getCoreForExtension(ext);
+  let chosenCore = coreSelector.value;
+  if (validCores && !validCores.includes(chosenCore)) { chosenCore = validCores[0]; coreSelector.value = chosenCore; }
+  const blob = new Blob([arrayBuffer]);
+  currentBlob = URL.createObjectURL(blob);
+  document.documentElement.style.setProperty("--accent", colorInput.value);
+  const oldScript = document.querySelector('script[src*="loader.js"]');
+  if (oldScript) oldScript.remove();
+  recreateGameContainer();
+  window.EJS_player = "#game"; window.EJS_core = chosenCore;
+  window.EJS_gameUrl = currentBlob; window.EJS_gameName = file.name;
+  window.EJS_pathtodata = "https://cdn.emulatorjs.org/stable/data/";
+  window.EJS_color = colorInput.value; window.EJS_startOnLoaded = true;
+  const script = document.createElement("script");
+  script.src = "https://cdn.emulatorjs.org/stable/data/loader.js";
+  document.body.appendChild(script);
+  statusText.textContent = "Playing (EmulatorJS): " + file.name;
+}
+
+function startFlash(file, arrayBuffer) {
+  clearGame(); currentMode = "flash";
+  const gameDiv = document.getElementById("game");
+  const ruffle = window.RufflePlayer.newest();
+  const player = ruffle.createPlayer();
+  player.style.width = "100%"; player.style.height = "100%";
+  gameDiv.appendChild(player);
+  player.load({ data: arrayBuffer });
+  statusText.textContent = "Playing (Flash): " + file.name;
+}
+
+async function handleFile(file) {
+  if (!file) return;
+  const ext = getExtension(file.name);
+  const arrayBuffer = await file.arrayBuffer();
+  if (ext === "swf") startFlash(file, arrayBuffer);
+  else startEmulator(file, arrayBuffer);
+}
+
+fileInput.addEventListener("change", () => handleFile(fileInput.files[0]));
+
+function setupDragDrop(target) {
+  target.addEventListener("dragover", e => e.preventDefault());
+  target.addEventListener("drop", e => { e.preventDefault(); handleFile(e.dataTransfer.files[0]); });
+}
+setupDragDrop(document.getElementById("game"));
+
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && !document.getElementById("patcher-overlay").classList.contains("open")) {
+    clearGame(); fileInput.value = "";
+  }
+});
+
+// rom patcher open+close and logic
+function openPatcher() { document.getElementById("patcher-overlay").classList.add("open"); }
+function closePatcher() { document.getElementById("patcher-overlay").classList.remove("open"); }
+function overlayClick(e) { if (e.target === document.getElementById("patcher-overlay")) closePatcher(); }
+document.addEventListener("keydown", e => { if (e.key === "Escape") closePatcher(); });
+
+let g_rom_valid=false, g_ips_valid=false, g_out_valid=false;
+let g_rom=[], g_ips=[], g_out=[];
+let g_rom_name="", g_ips_name="", g_out_name="", g_rom_ext="", g_ips_basename="";
+let g_ips_info="No patch loaded.", g_ips_parsed=false;
+let g_rom_crc=[], g_rom_md5=[], g_rom_sha1=[];
+let g_snes_header_found=false, g_snes_headerless_found=false;
+let g_snes_header_strip=true, g_snes_header_fake=false, g_ips_type=0;
+
+function rotl(x,s){ return ((x<<s)|(x>>>(32-s)))>>>0; }
+function stringhash(a){ let s=""; for(let i=0;i<a.length;++i) s+=("00000000"+a[i].toString(16).toUpperCase()).slice(-8); return s; }
+function endianswap(x){ return(((x>>>24)&0xFF)|((x>>>8)&0xFF00)|((x<<8)&0xFF0000)|((x<<24)&0xFF000000))>>>0; }
+function sizestring(x){ let sk=x>>>10,sb=x%1024,ss=sk+"kb"; if(sb>0)ss+=" + "+sb+"b"; return ss; }
+
+function crc32(array,start=0){
+  let i=start,crc=0xFFFFFFFF>>>0;
+  while(i<array.length){ let c=array[i++]; crc=crc^c; for(let j=0;j<8;++j){ let mask=-(crc&1); crc=(crc>>>1)^(0xEDB88320&mask); } }
+  return (~crc)>>>0;
+}
+
+function md5(array,start=0){
+  let i,d=[].slice.call(array.slice(start)),dl=d.length;
+  d.push(0x80); while((d.length%64)!=56)d.push(0);
+  for(i=0;i<4;++i)d.push(((dl<<3)>>>(i*8))&0xFF);
+  for(i=0;i<4;++i)d.push(((dl>>>29)>>>(i*8))&0xFF);
+  const cs=[7,12,17,22,7,12,17,22,7,12,17,22,7,12,17,22,5,9,14,20,5,9,14,20,5,9,14,20,5,9,14,20,4,11,16,23,4,11,16,23,4,11,16,23,4,11,16,23,6,10,15,21,6,10,15,21,6,10,15,21,6,10,15,21];
+  const ck=[0xD76AA478,0xE8C7B756,0x242070DB,0xC1BDCEEE,0xF57C0FAF,0x4787C62A,0xA8304613,0xFD469501,0x698098D8,0x8B44F7AF,0xFFFF5BB1,0x895CD7BE,0x6B901122,0xFD987193,0xA679438E,0x49B40821,0xF61E2562,0xC040B340,0x265E5A51,0xE9B6C7AA,0xD62F105D,0x02441453,0xD8A1E681,0xE7D3FBC8,0x21E1CDE6,0xC33707D6,0xF4D50D87,0x455A14ED,0xA9E3E905,0xFCEFA3F8,0x676F02D9,0x8D2A4C8A,0xFFFA3942,0x8771F681,0x6D9D6122,0xFDE5380C,0xA4BEEA44,0x4BDECFA9,0xF6BB4B60,0xBEBFBC70,0x289B7EC6,0xEAA127FA,0xD4EF3085,0x04881D05,0xD9D4D039,0xE6DB99E5,0x1FA27CF8,0xC4AC5665,0xF4292244,0x432AFF97,0xAB9423A7,0xFC93A039,0x655B59C3,0x8F0CCC92,0xFFEFF47D,0x85845DD1,0x6FA87E4F,0xFE2CE6E0,0xA3014314,0x4E0811A1,0xF7537E82,0xBD3AF235,0x2AD7D2BB,0xEB86D391];
+  let h0=0x67452301,h1=0xEFCDAB89,h2=0x98BADCFE,h3=0x10325476;
+  for(let chunk=0;chunk<d.length;chunk+=64){
+    let cw=[]; for(i=0;i<64;i+=4)cw.push((d[chunk+i]<<0)|(d[chunk+i+1]<<8)|(d[chunk+i+2]<<16)|(d[chunk+i+3]<<24));
+    let ha=h0,hb=h1,hc=h2,hd=h3,hf,hg;
+    for(i=0;i<64;++i){
+      if(i<16){hf=((hb&hc)|((~hb)&hd))>>>0;hg=i;}
+      else if(i<32){hf=((hd&hb)|((~hd)&hc))>>>0;hg=(5*i+1)%16;}
+      else if(i<48){hf=(hb^hc^hd)>>>0;hg=(3*i+5)%16;}
+      else{hf=(hc^(hb|(~hd)))>>>0;hg=(7*i)%16;}
+      hf=(hf+ha+ck[i]+cw[hg])>>>0;ha=hd;hd=hc;hc=hb;hb=(hb+rotl(hf,cs[i]))>>>0;
+    }
+    h0=(h0+ha)>>>0;h1=(h1+hb)>>>0;h2=(h2+hc)>>>0;h3=(h3+hd)>>>0;
+  }
+  return[endianswap(h0),endianswap(h1),endianswap(h2),endianswap(h3)];
+}
+
+function sha1(array,start=0){
+  let i,d=[].slice.call(array.slice(start)),dl=d.length;
+  d.push(0x80); while((d.length%64)!=56)d.push(0);
+  for(i=0;i<4;++i)d.push(((dl>>>29)>>>((3-i)*8))&0xFF);
+  for(i=0;i<4;++i)d.push(((dl<<3)>>>((3-i)*8))&0xFF);
+  let h0=0x67452301>>>0,h1=0xEFCDAB89>>>0,h2=0x98BADCFE>>>0,h3=0x10325476>>>0,h4=0xC3D2E1F0>>>0;
+  for(let chunk=0;chunk<d.length;chunk+=64){
+    let cw=[]; for(i=0;i<64;i+=4)cw.push((d[chunk+i]<<24)|(d[chunk+i+1]<<16)|(d[chunk+i+2]<<8)|(d[chunk+i+3]<<0));
+    for(i=16;i<80;++i)cw.push(rotl(cw[i-3]^cw[i-8]^cw[i-14]^cw[i-16],1));
+    let ha=h0,hb=h1,hc=h2,hd=h3,he=h4,hf,hk,ht;
+    for(i=0;i<80;++i){
+      if(i<20){hf=((hb&hc)|((~hb)&hd))>>>0;hk=0x5A827999>>>0;}
+      else if(i<40){hf=(hb^hc^hd)>>>0;hk=0x6ED9EBA1>>>0;}
+      else if(i<60){hf=((hb&hc)|(hb&hd)|(hc&hd))>>>0;hk=0x8F1BBCDC>>>0;}
+      else{hf=(hb^hc^hd)>>>0;hk=0xCA62C1D6>>>0;}
+      ht=(rotl(ha,5)+hf+he+hk+cw[i])>>>0;he=hd;hd=hc;hc=rotl(hb,30);hb=ha;ha=ht;
+    }
+    h0=(h0+ha)>>>0;h1=(h1+hb)>>>0;h2=(h2+hc)>>>0;h3=(h3+hd)>>>0;h4=(h4+he)>>>0;
+  }
+  return[h0,h1,h2,h3,h4];
+}
+
+const IPS_PATCH=['P','A','T','C','H'].map(c=>c.charCodeAt(0));
+const IPS_EOF=['E','O','F'].map(c=>c.charCodeAt(0));
+const BPS_PATCH=['B','P','S','1'].map(c=>c.charCodeAt(0));
+function ips_match_at(d,o,m){if((m.length+o)>d.length)return false;for(let i=0;i<m.length;++i)if(d[o+i]!=m[i])return false;return true;}
+function ips_24(d,o){if((o+3)>d.length)return -1;return(d[o]<<16)|(d[o+1]<<8)|d[o+2];}
+function ips_16(d,o){if((o+2)>d.length)return -1;return(d[o]<<8)|d[o+1];}
+
+function ips_validate(ips){
+  g_ips_type=0; g_ips_parsed=false;
+  if(!g_ips_valid){g_ips_info="No patch loaded.";return 0;}
+  g_ips_info=g_ips_name;
+  if(ips_match_at(ips,0,BPS_PATCH))return bps_validate(ips);
+  if(!ips_match_at(ips,0,IPS_PATCH)){g_ips_info+="<br/>Invalid patch file.";return 0;}
+  g_ips_parsed=true;
+  let patchlimit=0,patchbytes=0,chunkcount=0,chunk=5,eof=false,err="";
+  while(chunk<ips.length){
+    if(ips_match_at(ips,chunk,IPS_EOF)){eof=true;break;}
+    let co=ips_24(ips,chunk),cs=ips_16(ips,chunk+3);
+    if(co<0||cs<0){err+="<br/><b>Warning: Incomplete chunk.</b>";break;}
+    if(cs>0){if((chunk+5+cs)>ips.length){err+="<br/><b>Warning: Incomplete chunk.</b>";break;}patchlimit=Math.max(patchlimit,co+cs);chunk+=5+cs;patchbytes+=cs;chunkcount++;}
+    else{let rs=ips_16(ips,chunk+5);if(rs<0||(chunk+8)>ips.length){err+="<br/><b>Warning: Incomplete RLE chunk.</b>";break;}patchlimit=Math.max(patchlimit,co+rs);chunk+=8;patchbytes+=rs;chunkcount++;}
+  }
+  if(!eof)err+="<br/><b>Warning: No EOF.</b>";
+  g_ips_info+="<br/>Chunks: "+chunkcount+"<br/>Bytes: "+patchbytes+err;
+  return patchlimit;
+}
+
+function ips_apply(patched,src,ips){
+  if(g_ips_type==1)return bps_apply(patched,src,ips);
+  let chunk=5;
+  while(chunk<ips.length){
+    if(ips_match_at(ips,chunk,IPS_EOF))break;
+    let co=ips_24(ips,chunk),cs=ips_16(ips,chunk+3);
+    if(co<0||cs<0)break;
+    if(cs>0){if((chunk+5+cs)>ips.length)break;for(let i=0;i<cs;++i)patched[co+i]=ips[chunk+5+i];chunk+=5+cs;}
+    else{let rs=ips_16(ips,chunk+5);if(rs<0||(chunk+8)>ips.length)break;let rle=ips[chunk+7];for(let i=0;i<rs;++i)patched[co+i]=rle;chunk+=8;}
+  }
+  return patched;
+}
+
+let g_bps_number_size=0;
+function bps_number(d,o){g_bps_number_size=0;let n=0,shift=1;while(true){if(o>d.length)return -1;let x=d[o];g_bps_number_size++;o++;n+=(x&0x7F)*shift;if(x&0x80)break;shift<<=7;n+=shift;}return n;}
+function bps_32(d,o){if((o+4)>d.length)return -1;return((d[o])|(d[o+1]<<8)|(d[o+2]<<16)|(d[o+3]<<24))>>>0;}
+
+function bps_validate(bps){
+  g_ips_parsed=true;g_ips_type=1;
+  let chunk=4,src_size=bps_number(bps,chunk);chunk+=g_bps_number_size;
+  let tgt_size=bps_number(bps,chunk);chunk+=g_bps_number_size;
+  let meta_size=bps_number(bps,chunk);chunk+=g_bps_number_size;
+  if(src_size<0||tgt_size<0||meta_size<0){g_ips_info+="<br/><b>Error: Incomplete BPS header.</b>";return 0;}
+  chunk+=meta_size;
+  let err="",bps_end=bps.length-12,out_offset=0,src_offset=0,tgt_offset=0,action_count=0;
+  while(chunk<bps_end){
+    let anum=bps_number(bps,chunk);chunk+=g_bps_number_size;
+    if(anum<0){err+="<br/><b>Warning: Incomplete BPS action.</b>";break;}
+    let atype=anum&3,alen=(anum>>2)+1;
+    if(atype==0){out_offset+=alen;if(out_offset>tgt_size||out_offset>src_size){err+="<br/><b>Warning: BPS SourceRead OOB.</b>";break;}}
+    else if(atype==1){out_offset+=alen;chunk+=alen;if(out_offset>tgt_size){err+="<br/><b>Warning: BPS TargetRead OOB.</b>";break;}}
+    else if(atype==2){let cnum=bps_number(bps,chunk);chunk+=g_bps_number_size;if(cnum<0){err+="<br/><b>Warning: Incomplete BPS SourceCopy.</b>";break;}src_offset+=((cnum&1)?-1:1)*(cnum>>1);if(src_offset<0){err+="<br/><b>Warning: BPS SourceCopy underflow.</b>";break;}out_offset+=alen;src_offset+=alen;if(out_offset>tgt_size||src_offset>src_size){err+="<br/><b>Warning: BPS SourceCopy OOB.</b>";break;}}
+    else if(atype==3){let cnum=bps_number(bps,chunk);chunk+=g_bps_number_size;tgt_offset+=((cnum&1)?-1:1)*(cnum>>1);if(tgt_offset<0){err+="<br/><b>Warning: BPS TargetCopy underflow.</b>";break;}out_offset+=alen;tgt_offset+=alen;if(out_offset>tgt_size||tgt_offset>tgt_size){err+="<br/><b>Warning: BPS TargetCopy OOB.</b>";break;}}
+    action_count++;
+  }
+  if(bps_end>=0){let pat_crc=bps_32(bps,bps_end+8),bps_crc=crc32(bps.slice(0,bps.length-4));if(pat_crc!=bps_crc)err+="<br/><b>Warning: BPS CRC mismatch.</b>";}
+  g_ips_info+="<br/>Actions: "+action_count+err;
+  return tgt_size;
+}
+
+function bps_apply(patched,src,bps){
+  let err="",chunk=4;
+  let src_size=bps_number(bps,chunk);chunk+=g_bps_number_size;
+  let tgt_size=bps_number(bps,chunk);chunk+=g_bps_number_size;
+  let meta_size=bps_number(bps,chunk);chunk+=g_bps_number_size;
+  if(src_size<0||tgt_size<0||meta_size<0)return 0;
+  chunk+=meta_size;
+  let bps_end=bps.length-12,out_offset=0,src_offset=0,tgt_offset=0;
+  while(chunk<bps_end){
+    let anum=bps_number(bps,chunk);chunk+=g_bps_number_size;
+    if(anum<0)break;
+    let atype=anum&3,alen=(anum>>2)+1;
+    if(atype==0){if((out_offset+alen)>tgt_size||(out_offset+alen)>src_size)break;for(let i=0;i<alen;++i)patched[out_offset+i]=src[out_offset+i];out_offset+=alen;}
+    else if(atype==1){if(out_offset>tgt_size)break;for(let i=0;i<alen;++i)patched[out_offset+i]=bps[chunk+i];out_offset+=alen;chunk+=alen;}
+    else if(atype==2){let cnum=bps_number(bps,chunk);chunk+=g_bps_number_size;src_offset+=((cnum&1)?-1:1)*(cnum>>1);if(src_offset<0)break;if((out_offset+alen)>tgt_size||(src_offset+alen)>src_size)break;for(let i=0;i<alen;++i)patched[out_offset+i]=src[src_offset+i];out_offset+=alen;src_offset+=alen;}
+    else if(atype==3){let cnum=bps_number(bps,chunk);chunk+=g_bps_number_size;if(cnum<0)break;tgt_offset+=((cnum&1)?-1:1)*(cnum>>1);if(tgt_offset<0)break;if((out_offset+alen)>tgt_size||(tgt_offset+alen)>tgt_size)break;for(let i=0;i<alen;++i)patched[out_offset+i]=patched[tgt_offset+i];out_offset+=alen;tgt_offset+=alen;}
+  }
+  if(bps_end>=0){let src_crc=bps_32(bps,bps_end),tgt_crc=bps_32(bps,bps_end+4),pc=crc32(patched);if(src_crc!=crc32(src))err+="<br/><b>Warning: BPS source CRC mismatch.</b>";if(tgt_crc!=pc)err+="<br/><b>Warning: BPS target CRC mismatch.</b>";}
+  g_ips_info+=err;
+  return patched;
+}
+
+function p_rebuild(){
+  let extpos;
+  g_rom_ext=""; extpos=g_rom_name.lastIndexOf(".");
+  if(extpos!=-1)g_rom_ext=g_rom_name.substring(extpos);
+  g_ips_basename=g_ips_name; extpos=g_ips_name.lastIndexOf(".");
+  if(extpos!=-1)g_ips_basename=g_ips_name.substring(0,extpos);
+  g_out_name=g_ips_basename+g_rom_ext;
+
+  g_snes_header_found=false; g_snes_headerless_found=false;
+  if([".SFC",".SMC",".SWC",".FIG"].includes(g_rom_ext.toUpperCase())){
+    if((g_rom.length%1024)==512)g_snes_header_found=true;
+    else g_snes_headerless_found=true;
+  }
+  let header_strip=0,header_pad=0;
+  if(g_snes_header_found&&g_snes_header_strip)header_strip=512;
+  if(g_snes_headerless_found&&g_snes_header_fake)header_pad=512;
+
+  g_out_valid=false;
+  let patchlimit=ips_validate(g_ips);
+  if(g_rom_valid&&g_ips_valid&&g_ips_parsed){
+    let patchedsize=Math.max(g_rom.length+header_pad-header_strip,patchlimit);
+    if(g_ips_type==1)patchedsize=patchlimit;
+    let patched=new Uint8Array(patchedsize);
+    let src=g_rom.slice(header_strip);
+    if(g_ips_type!=1)patched.set(src,header_pad);
+    else{src=new Uint8Array(g_rom.length+header_pad-header_strip);src.set(g_rom.slice(header_strip),header_pad);}
+    g_out=ips_apply(patched,src,g_ips);
+    if(g_snes_headerless_found&&g_snes_header_fake)g_out=g_out.slice(header_pad);
+    g_out_valid=true;
+  }
+
+  const infoRom=document.getElementById("p-info-rom");
+  const infoIps=document.getElementById("p-info-ips");
+  const infoOut=document.getElementById("p-info-out");
+
+  if(g_rom_valid){
+    if(g_rom_crc.length<1){g_rom_crc=[crc32(g_rom,header_strip)];g_rom_md5=md5(g_rom,header_strip);g_rom_sha1=sha1(g_rom,header_strip);}
+    infoRom.innerHTML=g_rom_name+"<br/>CRC:&nbsp; "+stringhash(g_rom_crc)+"<br/>MD5:&nbsp; "+stringhash(g_rom_md5)+"<br/>SHA1: "+stringhash(g_rom_sha1)+"<br/>Size: "+sizestring(g_rom.length-header_strip);
+  }else infoRom.innerHTML="No ROM loaded.";
+
+  infoIps.innerHTML=g_ips_info;
+
+  if(g_out_valid)infoOut.innerHTML=g_out_name+"<br/>Size: "+sizestring(g_out.length);
+  else infoOut.innerHTML="No result.";
+
+  document.getElementById("p-dl-btn").disabled=!g_out_valid;
+  document.getElementById("p-snes-header-opt").style.display=g_snes_header_found?"flex":"none";
+  document.getElementById("p-snes-headerless-opt").style.display=g_snes_headerless_found?"flex":"none";
+}
+
+function p_browse_rom(){ document.getElementById("p-file-rom").click(); }
+function p_browse_ips(){ document.getElementById("p-file-ips").click(); }
+
+function p_on_rom(){
+  const fb=document.getElementById("p-file-rom");
+  if(!fb.files.length)return;
+  const file=fb.files[0];
+  const r=new FileReader();
+  r.onload=e=>{g_rom_name=file.name;g_rom=new Uint8Array(e.target.result);g_rom_valid=true;g_rom_crc=[];p_rebuild();};
+  r.readAsArrayBuffer(file);
+}
+
+function p_on_ips(){
+  const fb=document.getElementById("p-file-ips");
+  if(!fb.files.length)return;
+  const file=fb.files[0];
+  const r=new FileReader();
+  r.onload=e=>{g_ips_name=file.name;g_ips=new Uint8Array(e.target.result);g_ips_valid=true;p_rebuild();};
+  r.readAsArrayBuffer(file);
+}
+
+function p_drop_rom(e){
+  e.preventDefault();p_dragleave(e,'p-panel-rom');
+  if(e.dataTransfer.files.length){const file=e.dataTransfer.files[0];const r=new FileReader();r.onload=ev=>{g_rom_name=file.name;g_rom=new Uint8Array(ev.target.result);g_rom_valid=true;g_rom_crc=[];p_rebuild();};r.readAsArrayBuffer(file);}
+}
+function p_drop_ips(e){
+  e.preventDefault();p_dragleave(e,'p-panel-ips');
+  if(e.dataTransfer.files.length){const file=e.dataTransfer.files[0];const r=new FileReader();r.onload=ev=>{g_ips_name=file.name;g_ips=new Uint8Array(ev.target.result);g_ips_valid=true;p_rebuild();};r.readAsArrayBuffer(file);}
+}
+
+function p_dragover(e,id){e.preventDefault();p_dragenter(e,id);}
+function p_dragenter(e,id){document.getElementById(id).classList.add("drag-over");}
+function p_dragleave(e,id){document.getElementById(id).classList.remove("drag-over");}
+
+function p_download(){
+  if(!g_out_valid)return;
+  const blob=new Blob([new Uint8Array(g_out)],{type:"application/octet-stream"});
+  const a=document.createElement("a");
+  a.style="display:none"; a.download=g_out_name; a.href=URL.createObjectURL(blob);
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
+function p_snes_strip(cb){g_snes_header_strip=cb.checked;g_rom_crc=[];p_rebuild();}
+function p_snes_fake(cb){g_snes_header_fake=cb.checked;p_rebuild();}
+
+function p_tip(btn){
+  const tip=btn.nextElementSibling;
+  tip.style.display=(tip.style.display==="block")?"none":"block";
+}
+
+p_rebuild();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>usrx215's Arcadia</title>
+<link rel="icon" type="image/x-icon" href="images/arcadia-circle.png">
+<link rel="manifest" href="/manifest.json">
+<style>
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background: linear-gradient(-45deg, #ffff00, #20b2aa, #00ff00);
+    background-size: 400% 400%;
+    animation: gradient 15s ease infinite;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+}
+
+@keyframes gradient {
+    0%   { background-position: 0% 50%; }
+    50%  { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+header {
+    background-color: #20b2aa;
+    color: white;
+    padding: 1em 0;
+    text-align: center;
+    width: 100%
+}
+header img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+}
+.container {
+    padding: 20px;
+    max-width: 90%;
+    margin: 0 auto;
+}
+.games-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-top: 20px;
+}
+.game-card {
+    background: #494f52;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    padding: 15px;
+    text-align: center;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+.game-card img {
+    max-width: 100%;
+    border-radius: 5px;
+}
+.game-card h3 {
+    margin: 10px 0 5px;
+    color: white;
+}
+a { color: white; }
+.game-card p { color: white; }
+footer {
+    background-color: #333;
+    color: white;
+    text-align: center;
+    padding: 10px 0;
+    position: fixed;
+    width: 100%;
+    bottom: 0;
+}
+#announcement {
+    background-color: red;
+    color: white;
+    padding: 10px;
+    text-align: center;
+}
+</style>
+</head>
+<body>
+<!-- <div id="announcement">
+<h1>Test announcement, please ignore if you're looking at the source code :) thats right i see you taking a peek, but the site is open source so who cares?</h1>
+</div> -->
+<header>
+    <img src="images/arcadia-banner.png" alt="Arcadia Logo">
+</header>
+
+<div class="container">
+<section id="games" class="games-grid">
+    <div class="game-card" data-game-id="spike-dodger">
+        <a href="spikedodger.html"><img src="images/spikedodger.png" alt="Spike Dodger Logo"></a>
+        <h3><a href="spikedodger.html">Spike Dodger</a></h3>
+        <p>Dodge falling spikes that get faster and more plentiful as time progresses</p>
+    </div>
+    <div class="game-card" data-game-id="interlock">
+        <a href="interlock.html"><img src="images/interlock.png" alt="Interlock Logo"></a>
+        <h3><a href="interlock.html">Interlock</a></h3>
+        <p>Slide blocks to get the red one to the right side. NOTE: I'm working on more levels okay give me a break</p>
+    </div>
+    <div class="game-card" data-game-id="interlock-editor">
+        <a href="interlock-editor.html"><img src="images/interlock-editor.png" alt="Interlock Editor Preview"></a>
+        <h3><a href="interlock-editor.html">Interlock Editor</a></h3>
+        <p>Make your own Interlock levels!</p>
+    </div>
+    <div class="game-card" data-game-id="interlock-editor">
+        <a href="wordle.html"><img src="images/wordle.png" alt="Wordle Logo"></a>
+        <h3><a href="wordle.html">Wordle Unlimited</a></h3>
+        <p>Wordle but you can play indefinitely!</p>
+    </div>
+    <div class="game-card" data-game-id="hex">
+        <a href="hex.html"><img src="images/hex.png" alt="SC Games Icon"></a>
+        <h3><a href="hex.html">Hex</a></h3>
+        <p>11x11 game of Hex. Red tries to go from top to bottom, blue from left to right.</p>
+    </div>
+    <div class="game-card" data-game-id="flooder">
+        <a href="flooder.html"><img src="images/flooder.png" alt="Flooder Icon"></a>
+        <h3><a href="flooder.html">Flooder</a></h3>
+        <p>Click colors and fill the board within the number of moves with one color!</p>
+    </div>
+    <div class="game-card" data-game-id="dvd">
+        <a href="dvd.html"><img src="images/dvd.png" alt="DVD Logo"></a>
+        <h3><a href="dvd.html">Bouncing DVD Logo</a></h3>
+        <p>It's just the bouncing DVD logo. What else can I say?</p>
+    </div>
+    <div class="game-card" data-game-id="reemu">
+        <a href="reemu.html"><img src="images/emujs.png" alt="EmulatorJS Logo"></a>
+        <h3><a href="reemu.html">ReEmu</a></h3>
+        <p>Flash and retro console emulator using Ruffle and EmulatorJS</p>
+    </div>
+    <div class="game-card" data-game-id="maze-game">
+        <a href="mazegame.html"><img src="images/mazegame.png" alt="Maze Game Preview"></a>
+        <h3><a href="mazegame.html">Maze Game v2</a></h3>
+        <p>Complete randomized mazes from start to finish</p>
+    </div>
+    <div class="game-card" data-game-id="maze-builder">
+        <a href="mazebuilder.html"><img src="images/mazegame.png" alt="Maze Game Preview"></a>
+        <h3><a href="mazebuilder.html">Maze Game v2 - Maze Builder</a></h3>
+        <p>Build custom mazes for Maze Game v2</p>
+    </div>
+    <div class="game-card" data-game-id="guess-number">
+        <a href="gtn.html"><img src="images/gtn.png" alt="Guess the Number Game Icon"></a>
+        <h3><a href="gtn.html">Guess the Number</a></h3>
+        <p>Just read the title of the game.</p>
+    </div>
+    <div class="game-card" data-game-id="trampoline">
+        <a href="trampoline.html"><img src="images/trampoline.png" alt="Trampoline Icon"></a>
+        <h3><a href="trampoline.html">Trampoline</a></h3>
+        <p>Bounce constantly while dodging bullets, frogs, and wall spikes, but grab the green ones! They heal you up.</p>
+    </div>
+    <div class="game-card" data-game-id="pongout">
+        <a href="pongout.html"><img src="images/pongout.png" alt="PongOut Icon"></a>
+        <h3><a href="pongout.html">PongOut</a></h3>
+        <p>Pong + Breakout. It's PongOut!</p>
+    </div>
+    <div class="game-card" data-game-id="edgesurf">
+        <a href="edgesurf"><img src="images/surf.png" alt="Edge Surf Icon"></a>
+        <h3><a href="edgesurf">Edge Surf</a></h3>
+        <p>Surf game from Microsoft Edge.</p>
+    </div>
+    <div class="game-card" data-game-id="memory">
+        <a href="memory.html"><img src="images/memory.png" alt="Memory Preview"></a>
+        <h3><a href="memory.html">Memory</a></h3>
+        <p>Memory game from 4x4 up to 10x10 size.</p>
+    </div>
+    <div class="game-card" data-game-id="slots">
+        <a href="slots.html"><img src="images/slots.png" alt="Slots Preview"></a>
+        <h3><a href="slots.html">Slots</a></h3>
+        <p>GAMBLING YEAHHHHH (slots game but no worries no money to be lost, just ingame tokens)</p>
+    </div>
+    <div class="game-card" data-game-id="roulette">
+        <a href="roulette.html"><img src="images/roulette.png" alt="Roulette Preview"></a>
+        <h3><a href="roulette.html">Roulette</a></h3>
+        <p>GAMBLING YEAHHHHH (roulette game but no worries no money to be lost, just ingame tokens)</p>
+    </div>
+    <div class="game-card" data-game-id="plinko">
+        <a href="plinko.html"><img src="images/plinko.png" alt="Plinko Preview"></a>
+        <h3><a href="plinko.html">Plinko</a></h3>
+        <p>GAMBLING YEAHHHHH (plinko game but no worries no money to be lost, just ingame tokens)</p>
+    </div>
+    <div class="game-card" data-game-id="blackjack">
+        <a href="blackjack.html"><img src="images/blackjack.png" alt="Blackjack Preview"></a>
+        <h3><a href="blackjack.html">Blackjack</a></h3>
+        <p>GAMBLING YEAHHHHH (blackjack game but no worries no money to be lost, just ingame tokens)</p>
+    </div>
+    <div class="game-card" data-game-id="rps">
+        <a href="rps.html"><img src="images/rps.png" alt="RPS Preview"></a>
+        <h3><a href="rps.html">Rock Paper Scissors</a></h3>
+        <p>Very basic game of Rock Paper Scissors against a random number generator.</p>
+    </div>
+    <div class="game-card" data-game-id="base64">
+        <a href="beta/b64.html"><img src="images/arcadia-square.png" alt="Arcadia Icon"></a>
+        <h3><a href="beta/b64.html">Base64 Tool</a></h3>
+        <p>It lets you encode and decode Base64. Wow, amazing, right?</p>
+    </div>
+    </div>
+</section>
+</div>
+<hr style="color: #ffffff00; background: #ffffff00;"><hr style="color: #ffffff00; background: #ffffff00;"><hr style="color: #ffffff00; background: #ffffff00;"><hr style="color: #ffffff00; background: #ffffff00;"><hr style="color: #ffffff00; background: #ffffff00;">
+<footer>
+    Made with ♡ by <a href="https://usrx.space" target="_blank">usrx215</a>
+</footer>
+</body>
+</html>

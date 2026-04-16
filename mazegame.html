@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Maze Game v2</title>
+  <link rel="icon" type="image/x-icon" href="https://usrx215.github.io/scgames/mazegame.png">
+  <style>
+    :root { --bg:#0b0e14; --panel:#11151f; --ink:#e6e6e6; --muted:#9aa4b2; --accent:#6ee7ff; --accent2:#a7f3d0; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Ubuntu, Cantarell, Roboto, "Noto Sans", Arial, sans-serif; background:var(--bg); color:var(--ink); display:grid; min-height:100svh; grid-template-rows:auto 1fr; }
+    header { padding:12px 16px; background:linear-gradient(180deg, #0f1422, #0b0e14); border-bottom:1px solid #1d2433; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+    header h1 { font-size:16px; margin:0; letter-spacing:0.3px; font-weight:700; }
+    .controls { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    .controls label { font-size:12px; color:var(--muted); }
+    .controls input[type="number"]{ width:72px; }
+    .controls input, .controls button { background:#0f1422; color:var(--ink); border:1px solid #263046; border-radius:10px; padding:6px 10px; font-size:12px; }
+    .controls button { cursor:pointer; transition: transform .05s ease; }
+    .controls button:active { transform: translateY(1px); }
+    .controls .hint { color:var(--muted); font-size:12px; margin-left:6px; }
+    main { display:grid; place-items:center; padding:12px; position:relative; }
+    canvas { background:#05070c; border-radius:12px; box-shadow: 0 10px 40px #00000066, inset 0 0 0 1px #1d2433; image-rendering: pixelated; }
+    #minimap { position:absolute; top:20px; right:20px; background:#000; border:1px solid #444; border-radius:8px; image-rendering: pixelated; }
+    footer { text-align:center; color:var(--muted); font-size:12px; padding:8px 0 12px; }
+    .kbd { padding:1px 6px; border:1px solid #32415f; border-bottom-width:2px; border-radius:6px; background:#0f1422; color:#c9d2e1; font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size:12px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Maze Game v2</h1>
+    <div class="controls">
+      <label>Width (cells)
+        <input id="w" type="number" min="5" step="2" value="41" />
+      </label>
+      <label>Height (cells)
+        <input id="h" type="number" min="5" step="2" value="41" />
+      </label>
+      <label>Cell px
+        <input id="cell" type="number" min="4" max="64" value="16" />
+      </label>
+      <label>Seed
+        <input id="seed" type="text" placeholder="random" />
+      </label>
+      <label>Double-tap (ms)
+        <input id="dtWindow" type="number" min="50" max="500" step="10" value="160" />
+      </label>
+      <label><input id="enableDoubleTap" type="checkbox" checked /> Enable double-tap</label>
+      <label><input id="showPath" type="checkbox" /> Show solution</label>
+      <button id="regen">Regenerate</button>
+      <button id="reset">Reset Player</button>
+      <button id="showSeed">Show Seed</button>
+      <span class="hint">Controls: <span class="kbd">WASD</span>/<span class="kbd">↑←↓→</span>, <span class="kbd">R</span> regen</span>
+    </div>
+  </header>
+  <main>
+    <canvas id="maze"></canvas>
+    <canvas id="minimap" width="160" height="160"></canvas>
+  </main>
+  <footer>
+    Perfect maze — camera locked to player, minimap reveals visited tiles.
+  </footer>
+
+<script>
+/* Maze Game JS — patched to accept BM seeds + full movement features */
+
+// PRNG (seedable)
+function xmur3(str){ let h=1779033703^str.length; for(let i=0;i<str.length;i++){h=Math.imul(h^str.charCodeAt(i),3432918353); h=h<<13|h>>>19;} return ()=>{h=Math.imul(h^h>>>16,2246822507); h=Math.imul(h^h>>>13,3266489909); return (h^h>>>16)>>>0;}; }
+function mulberry32(a){ return function(){ let t=a+=0x6D2B79F5; t=Math.imul(t^t>>>15,t|1); t^=t+Math.imul(t^t>>>7,t|61); return ((t^t>>>14)>>>0)/4294967296; } }
+function makeRng(seedStr){ if(!seedStr) return Math.random; const seedFn=xmur3(seedStr); return mulberry32(seedFn()); }
+
+// BM: loader/decoder
+function decodeBM(seed){
+  if(!seed || !seed.startsWith('BM:')) return null;
+  try{
+    const b64 = seed.slice(3).replace(/-/g,'+').replace(/_/g,'/');
+    const pad = b64.length % 4 ? '='.repeat(4 - (b64.length % 4)) : '';
+    const json = decodeURIComponent(escape(atob(b64 + pad)));
+    return JSON.parse(json);
+  } catch(e){ return null; }
+}
+
+// DOM refs
+const canvas = document.getElementById('maze');
+const ctx = canvas.getContext('2d');
+const minimap = document.getElementById('minimap');
+const mctx = minimap.getContext('2d');
+
+const ACCENT = '#6ee7ff';
+const ACCENT2 = '#a7f3d0';
+
+let grid, W, H, CELL, rng, player, goal, visited;
+const VIEW = 21;
+let currentSeed = null;
+
+function initGrid(widthCells, heightCells){
+  W = widthCells|0; H = heightCells|0; if(W%2===0) W++; if(H%2===0) H++;
+  grid = Array.from({length:H}, ()=>Array(W).fill(1));
+  visited = Array.from({length:H}, ()=>Array(W).fill(false));
+}
+
+function shuffle(arr){ for(let i=arr.length-1;i>0;i--){const j=(rng()*(i+1))|0; [arr[i],arr[j]]=[arr[j],arr[i]];} return arr; }
+
+function carveMaze(){
+  const stack = [[1,1]]; grid[1][1] = 0;
+  while(stack.length){
+    const [cx,cy] = stack[stack.length-1];
+    const dirs = shuffle([[0,-2],[0,2],[2,0],[-2,0]]);
+    let carved = false;
+    for(const [dx,dy] of dirs){
+      const nx = cx+dx, ny = cy+dy;
+      if(ny>0 && ny<H-1 && nx>0 && nx<W-1 && grid[ny][nx]===1){
+        grid[cy+dy/2][cx+dx/2] = 0; grid[ny][nx] = 0;
+        stack.push([nx,ny]); carved = true; break;
+      }
+    }
+    if(!carved) stack.pop();
+  }
+  player = {x:1,y:1};
+  goal = farthestFrom(player);
+  player = farthestFrom(goal);
+}
+
+function bfsDistances(sx,sy){
+  const dist = Array.from({length:H}, ()=>Array(W).fill(Infinity));
+  const q = [[sx,sy]]; dist[sy][sx]=0;
+  const moves = [[1,0],[-1,0],[0,1],[0,-1]];
+  while(q.length){
+    const [x,y] = q.shift();
+    for(const [dx,dy] of moves){
+      const nx = x+dx, ny = y+dy;
+      if(nx>=0 && ny>=0 && nx<W && ny<H && grid[ny][nx]===0 && dist[ny][nx]===Infinity){
+        dist[ny][nx] = dist[y][x] + 1; q.push([nx,ny]);
+      }
+    }
+  }
+  return dist;
+}
+
+function farthestFrom(start){
+  const dist = bfsDistances(start.x, start.y);
+  let max = -1, pos = {x:start.x,y:start.y};
+  for(let y=1;y<H;y+=2){ for(let x=1;x<W;x+=2){ if(dist[y][x]!==Infinity && dist[y][x] > max){ max = dist[y][x]; pos = {x,y}; } } }
+  return pos;
+}
+
+function shortestPath(from, to){
+  const dist = bfsDistances(from.x, from.y);
+  if(dist[to.y][to.x]===Infinity) return [];
+  const path = [[to.x,to.y]];
+  const moves = [[1,0],[-1,0],[0,1],[0,-1]];
+  let [x,y] = [to.x,to.y];
+  while(x!==from.x || y!==from.y){
+    let best = null, bestd = Infinity;
+    for(const [dx,dy] of moves){
+      const nx = x+dx, ny = y+dy;
+      if(nx>=0 && ny>=0 && nx<W && ny<H && dist[ny][nx] < bestd){ bestd = dist[ny][nx]; best = [nx,ny]; }
+    }
+    if(!best) break;
+    [x,y] = best; path.push([x,y]);
+  }
+  return path.reverse();
+}
+
+function draw(){
+  canvas.width = VIEW * CELL;
+  canvas.height = VIEW * CELL;
+  ctx.fillStyle = '#03060b'; ctx.fillRect(0,0,canvas.width,canvas.height);
+  const half = VIEW >> 1;
+  for(let dy=-half; dy<=half; dy++){
+    for(let dx=-half; dx<=half; dx++){
+      const worldX = player.x + dx;
+      const worldY = player.y + dy;
+      const sx = (dx + half) * CELL;
+      const sy = (dy + half) * CELL;
+      if(worldX >= 0 && worldY >= 0 && worldX < W && worldY < H){
+        if(grid[worldY][worldX] === 1){ ctx.fillStyle = '#101826'; ctx.fillRect(sx, sy, CELL, CELL); ctx.fillStyle='rgba(255,255,255,0.04)'; ctx.fillRect(sx, sy, CELL, Math.max(1, CELL*0.12)); }
+        else { ctx.fillStyle = '#0c1220'; ctx.fillRect(sx, sy, CELL, CELL); }
+      } else { ctx.fillStyle = '#0b0f16'; ctx.fillRect(sx, sy, CELL, CELL); }
+    }
+  }
+  if(document.getElementById('showPath').checked){
+    const path = shortestPath(player, goal);
+    ctx.globalAlpha = 0.95;
+    for(const [px,py] of path){
+      const dx = px - player.x; const dy = py - player.y;
+      if(Math.abs(dx) <= half && Math.abs(dy) <= half){
+        const sx = (dx + half) * CELL + CELL*0.25;
+        const sy = (dy + half) * CELL + CELL*0.25;
+        ctx.fillStyle = ACCENT; ctx.fillRect(sx, sy, CELL*0.5, CELL*0.5);
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+  const gdx = goal.x - player.x, gdy = goal.y - player.y;
+  if(Math.abs(gdx) <= half && Math.abs(gdy) <= half){
+    const gsx = (gdx + half) * CELL + CELL*0.15;
+    const gsy = (gdy + half) * CELL + CELL*0.15;
+    ctx.fillStyle = ACCENT2; ctx.fillRect(gsx, gsy, CELL*0.7, CELL*0.7);
+  }
+  const center = half * CELL;
+  ctx.fillStyle = '#e5e7eb'; ctx.fillRect(center + CELL*0.2, center + CELL*0.2, CELL*0.6, CELL*0.6);
+  visited[player.y][player.x] = true;
+  drawMinimap();
+}
+
+function drawMinimap(){
+  const mw = minimap.width, mh = minimap.height;
+  const scaleX = mw / W, scaleY = mh / H;
+  mctx.fillStyle = '#000'; mctx.fillRect(0,0,mw,mh);
+  for(let y=0;y<H;y++){
+    for(let x=0;x<W;x++){
+      if(!visited[y][x]) continue;
+      mctx.fillStyle = grid[y][x]===0 ? '#0c1220' : '#101826';
+      mctx.fillRect(x*scaleX, y*scaleY, scaleX, scaleY);
+    }
+  }
+  mctx.fillStyle = '#e5e7eb'; mctx.fillRect(player.x*scaleX, player.y*scaleY, scaleX, scaleY);
+  mctx.fillStyle = ACCENT2; mctx.fillRect(goal.x*scaleX, goal.y*scaleY, scaleX, scaleY);
+}
+
+// regenerate function patched for BM seeds
+function regenerate(){
+  const w = Math.max(5, parseInt(document.getElementById('w').value,10) || 31);
+  const h = Math.max(5, parseInt(document.getElementById('h').value,10) || 31);
+  CELL = Math.max(4, Math.min(64, parseInt(document.getElementById('cell').value,10) || 16));
+  const seedStrRaw = document.getElementById('seed').value.trim();
+  currentSeed = seedStrRaw || (Math.random() + '').slice(2);
+
+  const bm = decodeBM(seedStrRaw);
+  if(bm){
+    initGrid(bm.W || w, bm.H || h);
+    if(Array.isArray(bm.wallRows)){
+      for(let y=0;y<Math.min(bm.wallRows.length,H);y++){
+        const row = bm.wallRows[y];
+        for(let x=0;x<Math.min(row.length,W);x++) grid[y][x] = row[x]==='1'?1:0;
+      }
+    }
+    if(bm.start) player = {x: bm.start.x, y: bm.start.y};
+    else player = {x:1,y:1};
+    if(bm.goal) goal = {x: bm.goal.x, y: bm.goal.y};
+    else goal = farthestFrom(player);
+    visited = Array.from({length:H}, ()=>Array(W).fill(false));
+    visited[player.y][player.x] = true;
+    canvas.width = VIEW * CELL; canvas.height = VIEW * CELL;
+    draw();
+    return;
+  }
+
+  rng = makeRng(seedStrRaw || currentSeed);
+  initGrid(w,h);
+  carveMaze();
+  visited = Array.from({length:H}, ()=>Array(W).fill(false));
+  visited[player.y][player.x] = true;
+  canvas.width = VIEW * CELL; canvas.height = VIEW * CELL;
+  draw();
+}
+
+function tryMove(dx,dy){
+  const nx = player.x + dx, ny = player.y + dy;
+  if(nx<0||ny<0||nx>=W||ny>=H) return false;
+  if(grid[ny][nx]===0){ player.x = nx; player.y = ny; draw(); checkWin(); return true; }
+  return false;
+}
+
+function slideUntilWall(dx,dy){
+  let moved = false;
+  while(true){
+    const nx = player.x + dx, ny = player.y + dy;
+    if(nx<0||ny<0||nx>=W||ny>=H) break;
+    if(grid[ny][nx]===1) break;
+    player.x = nx; player.y = ny; moved = true;
+  }
+  if(moved){ draw(); checkWin(); }
+  return moved;
+}
+
+function checkWin(){ if(player.x===goal.x && player.y===goal.y) flashWin(); }
+
+function flashWin(){
+  let t=0;
+  function step(){
+    draw();
+    const half = VIEW>>1;
+    const cx = half*CELL + CELL*0.5, cy = cx;
+    ctx.save();
+    ctx.globalAlpha = Math.max(0,1.2 - t);
+    ctx.strokeStyle = ACCENT;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(cx, cy, CELL*1.2*t, 0, Math.PI*2);
+    ctx.stroke();
+    ctx.restore();
+    t+=0.06;
+    if(t<1.2) requestAnimationFrame(step);
+    else {
+      document.getElementById('seed').value = '';
+      currentSeed = (Math.random() + '').slice(2);
+      rng = makeRng(currentSeed);
+      regenerate();
+    }
+  }
+  step();
+}
+
+const lastKeyTime = {up:0,down:0,left:0,right:0};
+
+function keyToDir(k){
+  if(k==='w' || k==='arrowup') return 'up';
+  if(k==='s' || k==='arrowdown') return 'down';
+  if(k==='a' || k==='arrowleft') return 'left';
+  if(k==='d' || k==='arrowright') return 'right';
+  return null;
+}
+
+function handleKey(e){
+  const k = e.key.toLowerCase();
+  if(k==='r') regenerate();
+  else if(k==='q') slideUntilWall(-1,0);
+  else if(k==='e') slideUntilWall(1,0);
+  else{
+    const dir = keyToDir(k); if(!dir) return;
+    const dtEnabled = document.getElementById('enableDoubleTap').checked;
+    const dtWin = parseInt(document.getElementById('dtWindow').value,10);
+    const now = Date.now();
+    let dx=0, dy=0;
+    if(dir==='up'){ dy=-1; if(dtEnabled && now - lastKeyTime.up < dtWin) slideUntilWall(0,-1); lastKeyTime.up=now; }
+    if(dir==='down'){ dy=1; if(dtEnabled && now - lastKeyTime.down < dtWin) slideUntilWall(0,1); lastKeyTime.down=now; }
+    if(dir==='left'){ dx=-1; if(dtEnabled && now - lastKeyTime.left < dtWin) slideUntilWall(-1,0); lastKeyTime.left=now; }
+    if(dir==='right'){ dx=1; if(dtEnabled && now - lastKeyTime.right < dtWin) slideUntilWall(1,0); lastKeyTime.right=now; }
+    tryMove(dx,dy);
+  }
+}
+
+document.getElementById('regen').onclick = regenerate;
+document.getElementById('reset').onclick = ()=>{ player={...farthestFrom(goal)}; visited = Array.from({length:H}, ()=>Array(W).fill(false)); visited[player.y][player.x]=true; draw(); };
+document.getElementById('showSeed').onclick = ()=>{ prompt('Current seed', currentSeed); };
+
+window.addEventListener('keydown', handleKey);
+regenerate();
+</script>
+</body>
+</html>

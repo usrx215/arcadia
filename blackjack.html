@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blackjack</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link rel="icon" type="image/x-icon" href="images/blackjack.png">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    background: linear-gradient(-45deg, #ffff00, #20b2aa, #00ff00);
+    background-size: 400% 400%;
+    animation: gradient 15s ease infinite;
+    min-height: 100vh;
+    font-family: 'Ubuntu', Arial, sans-serif;
+    display: flex; flex-direction: column;
+    justify-content: center; align-items: center;
+    color: #fff; padding: 2rem 1rem;
+}
+@keyframes gradient {
+    0%   { background-position: 0% 50%; }
+    50%  { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+h1 {
+    font-size: 2.5rem; font-weight: 700; margin-bottom: 1.5rem;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.2); letter-spacing: 0.02em;
+}
+.machine {
+    background: rgba(0,0,0,0.25); backdrop-filter: blur(8px);
+    border: 1.5px solid rgba(255,255,255,0.35); border-radius: 20px;
+    padding: 1.5rem 1.75rem;
+    display: flex; flex-direction: column; align-items: center; gap: 0.9rem;
+    min-width: 340px; max-width: 440px; width: 100%;
+}
+.token-bar {
+    width: 100%; background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.3); border-radius: 10px;
+    padding: 10px 16px; display: flex; align-items: center; justify-content: space-between;
+}
+.token-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.75; }
+.token-count { font-size: 1.4rem; font-weight: 700; }
+.token-bet   { font-size: 11px; opacity: 0.65; transition: opacity 0.2s; }
+.token-bet.active { opacity: 1; color: #ffd700; }
+
+/* TABLE */
+.table-area {
+    width: 100%; background: rgba(20,80,40,0.55);
+    border: 1px solid rgba(255,255,255,0.15); border-radius: 14px;
+    padding: 14px 12px; display: flex; flex-direction: column; gap: 10px;
+}
+.hand-label {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em;
+    opacity: 0.7; margin-bottom: 2px;
+}
+.hand-row { display: flex; align-items: flex-start; gap: 6px; flex-wrap: wrap; min-height: 74px; }
+.score-badge {
+    font-size: 12px; font-weight: 700;
+    background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 20px; padding: 2px 9px;
+    align-self: flex-end; margin-left: auto;
+    white-space: nowrap;
+}
+.score-badge.bust  { color: #ff7070; border-color: rgba(255,112,112,0.4); }
+.score-badge.bj    { color: #ffd700; border-color: rgba(255,215,0,0.5); }
+.score-badge.good  { color: #7fff7f; border-color: rgba(127,255,127,0.3); }
+
+/* CARD */
+.card {
+    width: 46px; height: 66px; border-radius: 7px;
+    background: #fff; color: #111;
+    display: flex; flex-direction: column; justify-content: space-between;
+    padding: 3px 4px; font-weight: 700; font-size: 13px; line-height: 1;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.45);
+    flex-shrink: 0;
+    animation: cardDeal 0.22s ease-out;
+    position: relative; overflow: hidden;
+}
+@keyframes cardDeal {
+    from { transform: scale(0.6) translateY(-18px); opacity: 0; }
+    to   { transform: scale(1)   translateY(0);     opacity: 1; }
+}
+.card.red { color: #c0392b; }
+.card .cv  { font-size: 13px; }
+.card .cs  { font-size: 11px; }
+.card .center-suit {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    font-size: 20px; opacity: 0.12; pointer-events: none;
+}
+.card-back {
+    width: 46px; height: 66px; border-radius: 7px;
+    background: linear-gradient(135deg, #1a3a6a 0%, #0d1f3c 100%);
+    border: 3px solid rgba(255,255,255,0.15);
+    box-shadow: 0 3px 10px rgba(0,0,0,0.45);
+    flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 20px; animation: cardDeal 0.22s ease-out;
+}
+
+/* WIN MSG */
+.win-msg {
+    font-size: 1rem; font-weight: 500; min-height: 1.5em;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.3); text-align: center;
+}
+.win-msg.show { animation: pop 0.25s ease-out; }
+@keyframes pop { 0% { transform: scale(0.75); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+
+/* CHIP SELECTOR */
+.chip-row {
+    display: flex; align-items: center; gap: 7px; width: 100%; justify-content: center;
+}
+.chip-label { font-size: 11px; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.06em; margin-right: 2px; }
+.chip-btn {
+    width: 42px; height: 42px; border-radius: 50%;
+    border: 3px dashed rgba(255,255,255,0.5);
+    background: rgba(255,255,255,0.12); color: #fff;
+    font-family: 'Ubuntu', Arial, sans-serif; font-weight: 700; font-size: 11px;
+    cursor: pointer; transition: all 0.15s;
+    display: flex; align-items: center; justify-content: center; padding: 0;
+}
+.chip-btn:hover { background: rgba(255,255,255,0.25); border-color: rgba(255,255,255,0.8); }
+.chip-btn.active { background: #ffd700; border-color: #ffd700; border-style: solid; color: #000; box-shadow: 0 0 14px rgba(255,215,0,0.55); }
+.chip-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+/* STATS */
+.stats { display: flex; gap: 10px; width: 100%; }
+.stat {
+    background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 10px; padding: 8px 12px; flex: 1; text-align: center;
+}
+.stat-label { font-size: 10px; opacity: 0.8; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 2px; }
+.stat-val   { font-size: 1.2rem; font-weight: 700; }
+
+/* PAYOUT PREVIEW */
+.payout-preview {
+    width: 100%; background: rgba(255,215,0,0.1);
+    border: 1px solid rgba(255,215,0,0.35); border-radius: 10px;
+    padding: 10px 14px; font-size: 12px; line-height: 1.7;
+    text-align: left; opacity: 0.9;
+}
+.preview-title { font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; opacity: 0.75; margin-bottom: 4px; }
+.bonus-line { display: flex; justify-content: space-between; }
+.bonus-val  { font-weight: 700; }
+.total-line {
+    display: flex; justify-content: space-between;
+    border-top: 1px solid rgba(255,215,0,0.3);
+    margin-top: 4px; padding-top: 4px; font-weight: 700; font-size: 13px;
+}
+.payout-result {
+    width: 100%; background: rgba(255,215,0,0.15);
+    border: 1px solid rgba(255,215,0,0.5); border-radius: 10px;
+    padding: 10px 14px; font-size: 0.9rem; font-weight: 500;
+    text-align: center; display: none;
+}
+.payout-result.show { display: block; animation: pop 0.3s ease-out; }
+
+/* BUTTONS */
+.btn-row { display: flex; gap: 8px; width: 100%; }
+button {
+    font-family: 'Ubuntu', Arial, sans-serif; font-weight: 700; cursor: pointer;
+    border-radius: 10px; border: 2px solid rgba(255,255,255,0.6);
+    background: rgba(255,255,255,0.2); color: #fff; letter-spacing: 0.04em;
+    transition: background 0.15s, transform 0.1s;
+    padding: 11px 10px; font-size: 0.9rem;
+}
+button:hover:not(:disabled) { background: rgba(255,255,255,0.35); }
+button:active:not(:disabled) { transform: scale(0.97); }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+#dealBtn   { flex: 2; font-size: 1rem; }
+#hitBtn    { flex: 1; border-color: rgba(127,255,127,0.6); background: rgba(127,255,127,0.15); }
+#hitBtn:hover:not(:disabled)   { background: rgba(127,255,127,0.3); }
+#standBtn  { flex: 1; border-color: rgba(255,127,127,0.6); background: rgba(255,127,127,0.15); }
+#standBtn:hover:not(:disabled) { background: rgba(255,127,127,0.3); }
+#doubleBtn { flex: 1; border-color: rgba(255,215,0,0.6); background: rgba(255,215,0,0.15); }
+#doubleBtn:hover:not(:disabled){ background: rgba(255,215,0,0.3); }
+#payoutBtn {
+    flex: 1; border-color: rgba(255,215,0,0.7); background: rgba(255,215,0,0.2);
+}
+#payoutBtn:hover:not(:disabled) { background: rgba(255,215,0,0.35); }
+
+.divider { width: 100%; border: none; border-top: 1px solid rgba(255,255,255,0.2); }
+.rules-title { font-size: 11px; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.08em; align-self: flex-start; }
+.rules-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; width: 100%; }
+.rule-item {
+    background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 8px; padding: 6px 4px; text-align: center;
+}
+.rule-label { font-size: 9px; opacity: 0.7; }
+.rule-val   { font-size: 11px; font-weight: 700; }
+
+/* OVERLAY */
+.broke-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+    z-index: 100; flex-direction: column; align-items: center; justify-content: center;
+}
+.broke-overlay.visible { display: flex; }
+.broke-box {
+    background: rgba(0,0,0,0.65); border: 2px solid rgba(255,255,255,0.4);
+    border-radius: 20px; padding: 2rem 2.5rem; max-width: 340px;
+    text-align: center; display: flex; flex-direction: column; gap: 0.85rem;
+}
+.broke-box h2 { font-size: 1.6rem; font-weight: 700; }
+.broke-box p  { font-size: 0.95rem; opacity: 0.85; line-height: 1.6; }
+.broke-box .hint { font-size: 0.82rem; opacity: 0.55; margin-top: 4px; }
+.secret-flash {
+    position: fixed; top: 0; left: 0; right: 0; padding: 14px;
+    background: rgba(0,0,0,0.8); color: #ffd700;
+    font-size: 1.1rem; font-weight: 700; text-align: center;
+    z-index: 200; letter-spacing: 0.05em;
+    transform: translateY(-100%); transition: transform 0.3s ease;
+}
+.secret-flash.show { transform: translateY(0); }
+.tap-dots {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 8px; z-index: 200;
+    opacity: 0; transition: opacity 0.3s; pointer-events: none;
+}
+.tap-dots.visible { opacity: 1; }
+.tap-dot { width: 10px; height: 10px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.6); background: transparent; transition: background 0.15s; }
+.tap-dot.filled { background: #ffd700; border-color: #ffd700; }
+</style>
+</head>
+<body>
+<h1>🃏 Blackjack</h1>
+<div class="machine">
+
+  <div class="token-bar">
+    <span class="token-label">🪙 Tokens</span>
+    <span class="token-count" id="tokenCount">500</span>
+    <span class="token-bet" id="tokenBet">Place a bet to deal</span>
+  </div>
+
+  <div class="table-area">
+    <div class="hand-label">Dealer</div>
+    <div style="display:flex;align-items:flex-end;gap:6px">
+      <div class="hand-row" id="dealerHand"></div>
+      <div class="score-badge" id="dealerScore" style="display:none"></div>
+    </div>
+    <div class="hand-label" style="margin-top:4px">You</div>
+    <div style="display:flex;align-items:flex-end;gap:6px">
+      <div class="hand-row" id="playerHand"></div>
+      <div class="score-badge" id="playerScore" style="display:none"></div>
+    </div>
+  </div>
+
+  <div class="win-msg" id="winMsg">Pick a chip and deal to start!</div>
+
+  <div class="chip-row">
+    <span class="chip-label">Bet:</span>
+    <button class="chip-btn active" data-val="10">10</button>
+    <button class="chip-btn" data-val="25">25</button>
+    <button class="chip-btn" data-val="50">50</button>
+    <button class="chip-btn" data-val="100">100</button>
+  </div>
+
+  <div class="btn-row">
+    <button id="dealBtn">🃏 Deal</button>
+    <button id="hitBtn"   disabled>Hit</button>
+    <button id="standBtn" disabled>Stand</button>
+    <button id="doubleBtn" disabled>2×</button>
+  </div>
+
+  <div class="btn-row" style="margin-top:-4px">
+    <button id="payoutBtn" style="flex:1">💰 Payout</button>
+  </div>
+
+  <div class="payout-result" id="payoutResult"></div>
+
+  <div class="stats">
+    <div class="stat"><div class="stat-label">Hands</div><div class="stat-val" id="handsEl">0</div></div>
+    <div class="stat"><div class="stat-label">Wins</div><div class="stat-val" id="winsEl">0</div></div>
+    <div class="stat"><div class="stat-label">Net</div><div class="stat-val" id="netEl">+0</div></div>
+  </div>
+
+  <div class="payout-preview">
+    <div class="preview-title">Streak Payout Preview</div>
+    <div class="bonus-line"><span id="prevHandLabel">Hand bonus (0× 5%)</span><span class="bonus-val" id="prevHandVal">+0</span></div>
+    <div class="bonus-line"><span id="prevWinLabel">Win bonus (0× 10%)</span><span class="bonus-val" id="prevWinVal">+0</span></div>
+    <div class="total-line"><span>Total payout</span><span id="prevTotal">+0 tokens</span></div>
+  </div>
+
+  <hr class="divider">
+  <div class="rules-title">House rules</div>
+  <div class="rules-grid">
+    <div class="rule-item"><div class="rule-label">Blackjack pays</div><div class="rule-val">3 : 2</div></div>
+    <div class="rule-item"><div class="rule-label">Win pays</div><div class="rule-val">1 : 1</div></div>
+    <div class="rule-item"><div class="rule-label">Dealer stands</div><div class="rule-val">Soft 17</div></div>
+  </div>
+
+</div>
+
+<div class="broke-overlay" id="brokeOverlay">
+  <div class="broke-box">
+    <h2>Busted! 💸</h2>
+    <p>You went over... your token limit. But there's a secret stash...</p>
+    <p class="hint">Psst: type <strong>777</strong> on your keyboard,<br>or tap 7 different spots on the screen.</p>
+  </div>
+</div>
+<div class="secret-flash" id="secretFlash">🃏 SECRET STASH UNLOCKED — +500 TOKENS 🃏</div>
+<div class="tap-dots" id="tapDots">
+  <div class="tap-dot" id="td0"></div><div class="tap-dot" id="td1"></div>
+  <div class="tap-dot" id="td2"></div><div class="tap-dot" id="td3"></div>
+  <div class="tap-dot" id="td4"></div><div class="tap-dot" id="td5"></div>
+  <div class="tap-dot" id="td6"></div>
+</div>
+
+<script>
+// ── DECK ──────────────────────────────────────────────────────────────────
+const SUITS  = ['♠','♥','♦','♣'];
+const VALUES = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+const RED_SUITS = new Set(['♥','♦']);
+
+function freshDeck() {
+    const d = [];
+    SUITS.forEach(s => VALUES.forEach(v => d.push({v, s})));
+    return d;
+}
+function shuffle(d) {
+    for (let i = d.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [d[i], d[j]] = [d[j], d[i]];
+    }
+    return d;
+}
+
+let deck = shuffle(freshDeck().concat(freshDeck(), freshDeck(), freshDeck(), freshDeck(), freshDeck()));
+
+function draw() {
+    if (deck.length < 20) deck = shuffle(freshDeck().concat(freshDeck(), freshDeck(), freshDeck(), freshDeck(), freshDeck()));
+    return deck.pop();
+}
+
+function cardVal(c) {
+    if (c.v === 'A') return 11;
+    if (['J','Q','K'].includes(c.v)) return 10;
+    return parseInt(c.v);
+}
+
+function handScore(hand) {
+    let total = 0, aces = 0;
+    hand.forEach(c => { total += cardVal(c); if (c.v === 'A') aces++; });
+    while (total > 21 && aces > 0) { total -= 10; aces--; }
+    return total;
+}
+
+// ── STATE ─────────────────────────────────────────────────────────────────
+let tokens = 500, hands = 0, wins = 0, net = 0;
+let selectedChip = 10, currentBet = 0;
+let playerHand = [], dealerHand = [], dealerHidden = null;
+let phase = 'bet'; // 'bet' | 'play' | 'done'
+
+// ── CARD RENDERING ────────────────────────────────────────────────────────
+function makeCardEl(card, hidden) {
+    if (hidden) {
+        const el = document.createElement('div');
+        el.className = 'card-back'; el.textContent = '🂠';
+        return el;
+    }
+    const el = document.createElement('div');
+    el.className = 'card' + (RED_SUITS.has(card.s) ? ' red' : '');
+    el.innerHTML =
+        '<span class="cv">' + card.v + '</span>' +
+        '<span class="center-suit">' + card.s + '</span>' +
+        '<span class="cs" style="align-self:flex-end">' + card.s + '</span>';
+    return el;
+}
+
+function renderHands(revealDealer) {
+    const ph = document.getElementById('playerHand');
+    const dh = document.getElementById('dealerHand');
+    ph.innerHTML = ''; dh.innerHTML = '';
+
+    playerHand.forEach(c => ph.appendChild(makeCardEl(c)));
+    dealerHand.forEach((c, i) => {
+        if (i === 0 && !revealDealer) dh.appendChild(makeCardEl(c, true));
+        else dh.appendChild(makeCardEl(c));
+    });
+
+    // Scores
+    const ps  = handScore(playerHand);
+    const ds  = revealDealer ? handScore(dealerHand) : cardVal(dealerHand[1] || {v:'2'});
+
+    const pEl = document.getElementById('playerScore');
+    const dEl = document.getElementById('dealerScore');
+
+    if (playerHand.length > 0) {
+        pEl.style.display = 'block';
+        pEl.textContent   = ps + (ps === 21 && playerHand.length === 2 ? ' BJ' : '');
+        pEl.className     = 'score-badge' + (ps > 21 ? ' bust' : ps === 21 ? ' bj' : ps >= 18 ? ' good' : '');
+    } else { pEl.style.display = 'none'; }
+
+    if (dealerHand.length > 0) {
+        dEl.style.display = 'block';
+        if (revealDealer) {
+            dEl.textContent = ds + (ds === 21 && dealerHand.length === 2 ? ' BJ' : '');
+            dEl.className   = 'score-badge' + (ds > 21 ? ' bust' : ds === 21 ? ' bj' : ds >= 18 ? ' good' : '');
+        } else {
+            dEl.textContent = '?'; dEl.className = 'score-badge';
+        }
+    } else { dEl.style.display = 'none'; }
+}
+
+// ── DEAL ──────────────────────────────────────────────────────────────────
+document.getElementById('dealBtn').addEventListener('click', () => {
+    if (tokens < selectedChip) return;
+    currentBet = selectedChip;
+    tokens -= currentBet;
+    phase = 'play';
+    playerHand = [draw(), draw()];
+    dealerHand = [draw(), draw()];
+    renderHands(false);
+    document.getElementById('payoutResult').classList.remove('show');
+    updateUI();
+
+    // Check immediate blackjack
+    const ps = handScore(playerHand);
+    const ds = handScore(dealerHand);
+    if (ps === 21) {
+        if (ds === 21) { endHand('push'); } else { endHand('blackjack'); }
+    }
+});
+
+// ── HIT ───────────────────────────────────────────────────────────────────
+document.getElementById('hitBtn').addEventListener('click', () => {
+    if (phase !== 'play') return;
+    playerHand.push(draw());
+    renderHands(false);
+    const ps = handScore(playerHand);
+    if (ps > 21) endHand('bust');
+    else if (ps === 21) dealerPlay();
+    else updateUI();
+});
+
+// ── STAND ─────────────────────────────────────────────────────────────────
+document.getElementById('standBtn').addEventListener('click', () => {
+    if (phase !== 'play') return;
+    dealerPlay();
+});
+
+// ── DOUBLE DOWN ───────────────────────────────────────────────────────────
+document.getElementById('doubleBtn').addEventListener('click', () => {
+    if (phase !== 'play' || playerHand.length !== 2) return;
+    if (tokens < currentBet) return;
+    tokens -= currentBet;
+    currentBet *= 2;
+    playerHand.push(draw());
+    renderHands(false);
+    const ps = handScore(playerHand);
+    if (ps > 21) endHand('bust');
+    else dealerPlay();
+});
+
+// ── DEALER PLAY ───────────────────────────────────────────────────────────
+function dealerPlay() {
+    phase = 'dealer';
+    renderHands(true);
+    let delay = 400;
+
+    function dealerStep() {
+        const ds = handScore(dealerHand);
+        if (ds < 17) {
+            setTimeout(() => {
+                dealerHand.push(draw());
+                renderHands(true);
+                dealerStep();
+            }, delay);
+        } else {
+            const ps = handScore(playerHand);
+            const outcome = ds > 21 ? 'dealer_bust'
+                : ps > ds ? 'win' : ps < ds ? 'lose' : 'push';
+            setTimeout(() => endHand(outcome), 300);
+        }
+    }
+    dealerStep();
+}
+
+// ── END HAND ──────────────────────────────────────────────────────────────
+function endHand(outcome) {
+    phase = 'done';
+    renderHands(true);
+    hands++;
+
+    let returned = 0, msg = '';
+    switch (outcome) {
+        case 'blackjack':
+            returned = currentBet + Math.floor(currentBet * 1.5);
+            msg = '🎉 Blackjack! +' + (returned - currentBet) + ' tokens';
+            break;
+        case 'win': case 'dealer_bust':
+            returned = currentBet * 2;
+            msg = outcome === 'dealer_bust'
+                ? '🎉 Dealer busts! +' + currentBet + ' tokens'
+                : '🎉 You win! +' + currentBet + ' tokens';
+            break;
+        case 'push':
+            returned = currentBet;
+            msg = '😐 Push — bet returned';
+            break;
+        case 'bust':
+            returned = 0;
+            msg = '💸 Bust! Lost ' + currentBet + ' tokens';
+            break;
+        case 'lose':
+            returned = 0;
+            msg = '💸 Dealer wins. Lost ' + currentBet + ' tokens';
+            break;
+    }
+
+    tokens += returned;
+    const profit = returned - currentBet;
+    net += profit;
+    if (profit > 0) wins++;
+
+    showWin(msg);
+    currentBet = 0;
+    updateUI();
+}
+
+// ── WIN MSG ───────────────────────────────────────────────────────────────
+function showWin(msg) {
+    const el = document.getElementById('winMsg');
+    el.textContent = msg; el.classList.remove('show');
+    void el.offsetWidth; el.classList.add('show');
+}
+
+// ── PAYOUT ────────────────────────────────────────────────────────────────
+function calcPayout() {
+    const handTiers = Math.floor(hands / 10);
+    const winTiers  = Math.floor(wins  / 5);
+    const handBonus = Math.floor(tokens * handTiers * 0.05);
+    const winBonus  = Math.floor(tokens * winTiers  * 0.10);
+    return { handTiers, winTiers, handBonus, winBonus, total: handBonus + winBonus };
+}
+
+function updatePayoutPreview() {
+    const { handTiers, winTiers, handBonus, winBonus, total } = calcPayout();
+    document.getElementById('prevHandLabel').textContent = 'Hand bonus (' + handTiers + '× 5%)';
+    document.getElementById('prevHandVal').textContent   = '+' + handBonus;
+    document.getElementById('prevWinLabel').textContent  = 'Win bonus (' + winTiers + '× 10%)';
+    document.getElementById('prevWinVal').textContent    = '+' + winBonus;
+    document.getElementById('prevTotal').textContent     = '+' + total + ' tokens';
+    document.getElementById('payoutBtn').disabled = (total === 0);
+}
+
+document.getElementById('payoutBtn').addEventListener('click', () => {
+    const { handTiers, winTiers, handBonus, winBonus, total } = calcPayout();
+    if (total === 0) return;
+    tokens += total;
+    let msg = '💰 Payout! ';
+    if (handTiers > 0) msg += handTiers + '× hand +' + handBonus;
+    if (handTiers > 0 && winTiers > 0) msg += ' · ';
+    if (winTiers  > 0) msg += winTiers  + '× win +'  + winBonus;
+    msg += ' = +' + total + ' tokens!';
+    const el = document.getElementById('payoutResult');
+    el.textContent = msg; el.classList.remove('show');
+    void el.offsetWidth; el.classList.add('show');
+    hands = 0; wins = 0; net = 0;
+    updateUI();
+});
+
+// ── CHIP SELECTION ────────────────────────────────────────────────────────
+document.querySelectorAll('.chip-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.chip-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        selectedChip = parseInt(btn.dataset.val);
+        updateUI();
+    });
+});
+
+// ── UI UPDATE ─────────────────────────────────────────────────────────────
+function updateUI() {
+    document.getElementById('tokenCount').textContent = tokens;
+    document.getElementById('handsEl').textContent = hands;
+    document.getElementById('winsEl').textContent  = wins;
+    const netEl = document.getElementById('netEl');
+    netEl.textContent = (net >= 0 ? '+' : '') + net;
+    netEl.style.color = net >= 0 ? '#7fff7f' : '#ff7f7f';
+
+    const betEl = document.getElementById('tokenBet');
+    if (currentBet > 0) {
+        betEl.textContent = 'Bet: ' + currentBet + ' tokens';
+        betEl.classList.add('active');
+    } else {
+        betEl.textContent = phase === 'bet' ? 'Place a bet to deal' : 'Round over';
+        betEl.classList.remove('active');
+    }
+
+    const inPlay = phase === 'play';
+    document.getElementById('dealBtn').disabled   = phase !== 'bet' && phase !== 'done' || tokens < selectedChip;
+    document.getElementById('hitBtn').disabled    = !inPlay;
+    document.getElementById('standBtn').disabled  = !inPlay;
+    document.getElementById('doubleBtn').disabled = !inPlay || playerHand.length !== 2 || tokens < currentBet;
+
+    // After done, re-enable deal
+    if (phase === 'done') {
+        document.getElementById('dealBtn').disabled = tokens < selectedChip;
+    }
+
+    document.querySelectorAll('.chip-btn').forEach(btn => {
+        btn.disabled = parseInt(btn.dataset.val) > tokens || phase === 'play' || phase === 'dealer';
+    });
+
+    updatePayoutPreview();
+    if (tokens < 10 && phase !== 'play' && phase !== 'dealer') {
+        document.getElementById('brokeOverlay').classList.add('visible');
+    } else {
+        document.getElementById('brokeOverlay').classList.remove('visible');
+    }
+}
+
+// ── SECRET STASH ──────────────────────────────────────────────────────────
+let secretTimer = null;
+function triggerSecret() {
+    tokens += 500; updateUI();
+    clearTimeout(secretTimer);
+    const fl = document.getElementById('secretFlash');
+    fl.classList.add('show');
+    secretTimer = setTimeout(() => fl.classList.remove('show'), 2800);
+    document.getElementById('brokeOverlay').classList.remove('visible');
+}
+let keyBuf = '';
+document.addEventListener('keydown', e => {
+    keyBuf += e.key;
+    if (keyBuf.length > 3) keyBuf = keyBuf.slice(-3);
+    if (keyBuf === '777') { keyBuf = ''; triggerSecret(); }
+});
+let tapPositions = [], tapTimer2 = null;
+const tapDotsEl = document.getElementById('tapDots');
+const tapDotEls = Array.from({length:7}, (_,i) => document.getElementById('td'+i));
+function updateTapDots() {
+    tapDotsEl.classList.add('visible');
+    tapDotEls.forEach((d,i) => d.classList.toggle('filled', i < tapPositions.length));
+    clearTimeout(tapTimer2);
+    tapTimer2 = setTimeout(() => { tapPositions = []; tapDotsEl.classList.remove('visible'); tapDotEls.forEach(d => d.classList.remove('filled')); }, 3000);
+}
+function handleTap(x, y) {
+    const tooClose = tapPositions.some(p => Math.hypot(p.x-x,p.y-y) < 60);
+    if (tooClose) return;
+    tapPositions.push({x,y}); updateTapDots();
+    if (tapPositions.length >= 7) { tapPositions = []; clearTimeout(tapTimer2); tapDotsEl.classList.remove('visible'); tapDotEls.forEach(d => d.classList.remove('filled')); triggerSecret(); }
+}
+document.addEventListener('click', e => handleTap(e.clientX, e.clientY));
+document.addEventListener('touchstart', e => { Array.from(e.changedTouches).forEach(t => handleTap(t.clientX, t.clientY)); }, { passive: true });
+
+// ── INIT ──────────────────────────────────────────────────────────────────
+updateUI();
+</script>
+</body>
+</html>

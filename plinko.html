@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plinko</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link rel="icon" type="image/x-icon" href="images/plinko.png">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    background: linear-gradient(-45deg, #ffff00, #20b2aa, #00ff00);
+    background-size: 400% 400%;
+    animation: gradient 15s ease infinite;
+    min-height: 100vh;
+    font-family: 'Ubuntu', Arial, sans-serif;
+    display: flex; flex-direction: column;
+    justify-content: center; align-items: center;
+    color: #fff; padding: 2rem 1rem;
+}
+@keyframes gradient {
+    0%   { background-position: 0% 50%; }
+    50%  { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+h1 {
+    font-size: 2.5rem; font-weight: 700; margin-bottom: 1.5rem;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.2); letter-spacing: 0.02em;
+}
+.machine {
+    background: rgba(0,0,0,0.25); backdrop-filter: blur(8px);
+    border: 1.5px solid rgba(255,255,255,0.35); border-radius: 20px;
+    padding: 1.5rem 1.75rem;
+    display: flex; flex-direction: column; align-items: center; gap: 0.9rem;
+    min-width: 340px; max-width: 440px; width: 100%;
+}
+.token-bar {
+    width: 100%; background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.3); border-radius: 10px;
+    padding: 10px 16px; display: flex; align-items: center; justify-content: space-between;
+}
+.token-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.75; }
+.token-count { font-size: 1.4rem; font-weight: 700; }
+.token-cost  { font-size: 11px; opacity: 0.65; }
+
+#plinkCanvas {
+    border-radius: 12px;
+    border: 1.5px solid rgba(255,255,255,0.25);
+    display: block;
+}
+
+.win-msg {
+    font-size: 1rem; font-weight: 500; min-height: 1.5em;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.3);
+}
+.win-msg.show { animation: pop 0.25s ease-out; }
+@keyframes pop { 0% { transform: scale(0.75); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+
+.stats { display: flex; gap: 10px; width: 100%; }
+.stat {
+    background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 10px; padding: 8px 12px; flex: 1; text-align: center;
+}
+.stat-label { font-size: 10px; opacity: 0.8; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 2px; }
+.stat-val   { font-size: 1.2rem; font-weight: 700; }
+
+.payout-preview {
+    width: 100%; background: rgba(255,215,0,0.1);
+    border: 1px solid rgba(255,215,0,0.35); border-radius: 10px;
+    padding: 10px 14px; font-size: 12px; line-height: 1.7;
+    text-align: left; opacity: 0.9;
+}
+.preview-title { font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; opacity: 0.75; margin-bottom: 4px; }
+.bonus-line { display: flex; justify-content: space-between; }
+.bonus-val  { font-weight: 700; }
+.total-line {
+    display: flex; justify-content: space-between;
+    border-top: 1px solid rgba(255,215,0,0.3);
+    margin-top: 4px; padding-top: 4px; font-weight: 700; font-size: 13px;
+}
+.payout-result {
+    width: 100%; background: rgba(255,215,0,0.15);
+    border: 1px solid rgba(255,215,0,0.5); border-radius: 10px;
+    padding: 10px 14px; font-size: 0.9rem; font-weight: 500;
+    text-align: center; display: none;
+}
+.payout-result.show { display: block; animation: pop 0.3s ease-out; }
+
+.chip-row {
+    display: flex; align-items: center; gap: 7px; width: 100%; justify-content: center;
+}
+.chip-label { font-size: 11px; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.06em; margin-right: 2px; }
+.chip-btn {
+    width: 42px; height: 42px; border-radius: 50%;
+    border: 3px dashed rgba(255,255,255,0.5);
+    background: rgba(255,255,255,0.12); color: #fff;
+    font-family: 'Ubuntu', Arial, sans-serif; font-weight: 700; font-size: 11px;
+    cursor: pointer; transition: all 0.15s;
+    display: flex; align-items: center; justify-content: center; padding: 0;
+}
+.chip-btn:hover { background: rgba(255,255,255,0.25); border-color: rgba(255,255,255,0.8); }
+.chip-btn.active { background: #ffd700; border-color: #ffd700; border-style: solid; color: #000; box-shadow: 0 0 14px rgba(255,215,0,0.55); }
+.chip-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+.btn-row { display: flex; gap: 10px; width: 100%; }
+button {
+    font-family: 'Ubuntu', Arial, sans-serif; font-weight: 700; cursor: pointer;
+    border-radius: 10px; border: 2px solid rgba(255,255,255,0.6);
+    background: rgba(255,255,255,0.2); color: #fff; letter-spacing: 0.04em;
+    transition: background 0.15s, transform 0.1s;
+}
+button:hover:not(:disabled) { background: rgba(255,255,255,0.35); }
+button:active:not(:disabled) { transform: scale(0.97); }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+#dropBtn  { flex: 2; padding: 12px 20px; font-size: 1.1rem; }
+#payoutBtn {
+    flex: 1; padding: 12px 16px; font-size: 0.95rem;
+    border-color: rgba(255,215,0,0.7); background: rgba(255,215,0,0.2);
+}
+#payoutBtn:hover:not(:disabled) { background: rgba(255,215,0,0.35); }
+
+.divider { width: 100%; border: none; border-top: 1px solid rgba(255,255,255,0.2); }
+.mult-key-title { font-size: 11px; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.08em; align-self: flex-start; }
+.mult-key { display: flex; gap: 6px; width: 100%; justify-content: center; flex-wrap: wrap; }
+.mk-item {
+    background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 8px; padding: 5px 9px; text-align: center;
+}
+.mk-label { font-size: 9px; opacity: 0.7; }
+.mk-val   { font-size: 12px; font-weight: 700; }
+
+.broke-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+    z-index: 100; flex-direction: column; align-items: center; justify-content: center;
+}
+.broke-overlay.visible { display: flex; }
+.broke-box {
+    background: rgba(0,0,0,0.65); border: 2px solid rgba(255,255,255,0.4);
+    border-radius: 20px; padding: 2rem 2.5rem; max-width: 340px;
+    text-align: center; display: flex; flex-direction: column; gap: 0.85rem;
+}
+.broke-box h2 { font-size: 1.6rem; font-weight: 700; }
+.broke-box p  { font-size: 0.95rem; opacity: 0.85; line-height: 1.6; }
+.broke-box .hint { font-size: 0.82rem; opacity: 0.55; margin-top: 4px; }
+.secret-flash {
+    position: fixed; top: 0; left: 0; right: 0; padding: 14px;
+    background: rgba(0,0,0,0.8); color: #ffd700;
+    font-size: 1.1rem; font-weight: 700; text-align: center;
+    z-index: 200; letter-spacing: 0.05em;
+    transform: translateY(-100%); transition: transform 0.3s ease;
+}
+.secret-flash.show { transform: translateY(0); }
+.tap-dots {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 8px; z-index: 200;
+    opacity: 0; transition: opacity 0.3s; pointer-events: none;
+}
+.tap-dots.visible { opacity: 1; }
+.tap-dot { width: 10px; height: 10px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.6); background: transparent; transition: background 0.15s; }
+.tap-dot.filled { background: #ffd700; border-color: #ffd700; }
+</style>
+</head>
+<body>
+<h1>🪅 Plinko</h1>
+<div class="machine">
+  <div class="token-bar">
+    <span class="token-label">🪙 Tokens</span>
+    <span class="token-count" id="tokenCount">500</span>
+    <span class="token-cost" id="costLabel">10 per drop</span>
+  </div>
+
+  <canvas id="plinkCanvas" width="340" height="320"></canvas>
+
+  <div class="win-msg" id="winMsg"></div>
+
+  <div class="chip-row">
+    <span class="chip-label">Bet:</span>
+    <button class="chip-btn active" data-val="10">10</button>
+    <button class="chip-btn" data-val="25">25</button>
+    <button class="chip-btn" data-val="50">50</button>
+    <button class="chip-btn" data-val="100">100</button>
+  </div>
+
+  <div class="btn-row">
+    <button id="dropBtn">⬇ Drop Ball</button>
+    <button id="payoutBtn">💰 Payout</button>
+  </div>
+
+  <div class="payout-result" id="payoutResult"></div>
+
+  <div class="stats">
+    <div class="stat"><div class="stat-label">Drops</div><div class="stat-val" id="dropsEl">0</div></div>
+    <div class="stat"><div class="stat-label">Wins</div><div class="stat-val" id="winsEl">0</div></div>
+    <div class="stat"><div class="stat-label">Net</div><div class="stat-val" id="netEl">+0</div></div>
+  </div>
+
+  <div class="payout-preview">
+    <div class="preview-title">Streak Payout Preview</div>
+    <div class="bonus-line"><span id="prevDropLabel">Drop bonus (0× 5%)</span><span class="bonus-val" id="prevDropVal">+0</span></div>
+    <div class="bonus-line"><span id="prevWinLabel">Win bonus (0× 10%)</span><span class="bonus-val" id="prevWinVal">+0</span></div>
+    <div class="total-line"><span>Total payout</span><span id="prevTotal">+0 tokens</span></div>
+  </div>
+
+  <hr class="divider">
+  <div class="mult-key-title">Bucket multipliers</div>
+  <div class="mult-key" id="multKey"></div>
+</div>
+
+<div class="broke-overlay" id="brokeOverlay">
+  <div class="broke-box">
+    <h2>Broke! 💸</h2>
+    <p>The pegs took everything. But there might be a secret stash...</p>
+    <p class="hint">Psst: type <strong>777</strong> on your keyboard,<br>or tap 7 different spots on the screen.</p>
+  </div>
+</div>
+<div class="secret-flash" id="secretFlash">🪅 SECRET STASH UNLOCKED — +500 TOKENS 🪅</div>
+<div class="tap-dots" id="tapDots">
+  <div class="tap-dot" id="td0"></div><div class="tap-dot" id="td1"></div>
+  <div class="tap-dot" id="td2"></div><div class="tap-dot" id="td3"></div>
+  <div class="tap-dot" id="td4"></div><div class="tap-dot" id="td5"></div>
+  <div class="tap-dot" id="td6"></div>
+</div>
+
+<script>
+const canvas = document.getElementById('plinkCanvas');
+const ctx    = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+// ── LAYOUT ────────────────────────────────────────────────────────────────
+const ROWS = 10;
+const PEG_R  = 4;
+const BALL_R = 7;
+const TOP_PAD  = 28;
+const BOT_PAD  = 46;
+const PLAY_H   = H - TOP_PAD - BOT_PAD;
+const ROW_GAP  = PLAY_H / (ROWS - 1);
+
+// Build peg grid
+const pegs = [];
+for (let r = 0; r < ROWS; r++) {
+    const cols = r + 3;
+    const rowW = (cols - 1) * (W / (ROWS + 2));
+    const startX = (W - rowW) / 2;
+    for (let c = 0; c < cols; c++) {
+        pegs.push({ x: startX + c * (W / (ROWS + 2)), y: TOP_PAD + r * ROW_GAP });
+    }
+}
+
+// Buckets
+const BUCKET_MULTS = [10, 3, 1.5, 0.5, 0.2, 0.5, 1.5, 3, 10];
+const NUM_BUCKETS = BUCKET_MULTS.length;
+const BW = W / NUM_BUCKETS;
+const bucketColors = ['#c8a900','#7a5c00','#4a7a3a','#3a4a6a','#2a2a3a','#3a4a6a','#4a7a3a','#7a5c00','#c8a900'];
+
+function multColor(m) {
+    if (m >= 5)  return '#ffd700';
+    if (m >= 2)  return '#90ee90';
+    if (m >= 1)  return '#87ceeb';
+    return '#ff9999';
+}
+
+// Build mult key
+const mk = document.getElementById('multKey');
+BUCKET_MULTS.forEach(m => {
+    const d = document.createElement('div');
+    d.className = 'mk-item';
+    d.innerHTML = '<div class="mk-val" style="color:' + multColor(m) + '">' + m + 'x</div>';
+    mk.appendChild(d);
+});
+
+// ── STATE ─────────────────────────────────────────────────────────────────
+let tokens = 500, drops = 0, wins = 0, net = 0;
+let selectedChip = 10;
+let balls = [];  // active physics balls
+let dropping = false;
+let animId = null;
+
+// ── PHYSICS ───────────────────────────────────────────────────────────────
+function makeBall(x) {
+    return {
+        x, y: TOP_PAD - BALL_R,
+        vx: (Math.random() - 0.5) * 0.5,
+        vy: 1,
+        settled: false,
+        bucket: -1,
+        trail: []
+    };
+}
+
+const GRAVITY = 0.28;
+const BOUNCE  = 0.38;
+const FRICTION = 0.82;
+
+function stepBall(b) {
+    if (b.settled) return;
+    b.trail.push({x: b.x, y: b.y});
+    if (b.trail.length > 8) b.trail.shift();
+
+    b.vy += GRAVITY;
+    b.x  += b.vx;
+    b.y  += b.vy;
+
+    // Peg collisions
+    for (const p of pegs) {
+        const dx = b.x - p.x, dy = b.y - p.y;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        const minD = PEG_R + BALL_R;
+        if (dist < minD && dist > 0) {
+            const nx = dx / dist, ny = dy / dist;
+            b.x = p.x + nx * minD;
+            b.y = p.y + ny * minD;
+            const dot = b.vx * nx + b.vy * ny;
+            b.vx = (b.vx - 2 * dot * nx) * BOUNCE + (Math.random() - 0.5) * 1.2;
+            b.vy = (b.vy - 2 * dot * ny) * BOUNCE;
+        }
+    }
+
+    // Walls
+    if (b.x - BALL_R < 0)   { b.x = BALL_R;   b.vx = Math.abs(b.vx) * BOUNCE; }
+    if (b.x + BALL_R > W)   { b.x = W - BALL_R; b.vx = -Math.abs(b.vx) * BOUNCE; }
+
+    // Bucket floor
+    if (b.y + BALL_R >= H - BOT_PAD + 6) {
+        b.y = H - BOT_PAD + 6 - BALL_R;
+        b.vy *= -0.15;
+        b.vx *= FRICTION;
+        if (Math.abs(b.vy) < 0.4 && Math.abs(b.vx) < 0.3) {
+            b.settled = true;
+            b.bucket  = Math.min(NUM_BUCKETS - 1, Math.floor(b.x / BW));
+        }
+    }
+}
+
+// ── DRAW ──────────────────────────────────────────────────────────────────
+function draw() {
+    ctx.clearRect(0, 0, W, H);
+
+    // Background
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    ctx.roundRect(0, 0, W, H, 10);
+    ctx.fill();
+
+    // Pegs
+    pegs.forEach(p => {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, PEG_R, 0, Math.PI * 2);
+        const pg = ctx.createRadialGradient(p.x - 1, p.y - 1, 0.5, p.x, p.y, PEG_R);
+        pg.addColorStop(0, '#fff');
+        pg.addColorStop(1, 'rgba(200,200,255,0.6)');
+        ctx.fillStyle = pg;
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+    });
+
+    // Buckets
+    for (let i = 0; i < NUM_BUCKETS; i++) {
+        const bx = i * BW;
+        const by = H - BOT_PAD;
+        const m  = BUCKET_MULTS[i];
+        ctx.fillStyle = 'rgba(0,0,0,0.35)';
+        ctx.fillRect(bx + 1, by, BW - 2, BOT_PAD - 1);
+        ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(bx + 1, by, BW - 2, BOT_PAD - 1);
+        ctx.fillStyle = multColor(m);
+        ctx.font = 'bold 10px Ubuntu, Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(m + 'x', bx + BW / 2, by + BOT_PAD / 2);
+    }
+
+    // Bucket dividers
+    for (let i = 1; i < NUM_BUCKETS; i++) {
+        ctx.beginPath();
+        ctx.moveTo(i * BW, H - BOT_PAD);
+        ctx.lineTo(i * BW, H);
+        ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+    }
+
+    // Balls
+    balls.forEach(b => {
+        // Trail
+        b.trail.forEach((pt, i) => {
+            const a = (i / b.trail.length) * 0.35;
+            ctx.beginPath();
+            ctx.arc(pt.x, pt.y, BALL_R * 0.5 * (i / b.trail.length), 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255,215,0,' + a + ')';
+            ctx.fill();
+        });
+        // Shadow
+        ctx.beginPath();
+        ctx.arc(b.x + 2, b.y + 2, BALL_R, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.fill();
+        // Ball
+        const bg2 = ctx.createRadialGradient(b.x - 2, b.y - 2, 1, b.x, b.y, BALL_R);
+        bg2.addColorStop(0, '#fffbe6');
+        bg2.addColorStop(0.5, '#ffd700');
+        bg2.addColorStop(1, '#b8860b');
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, BALL_R, 0, Math.PI * 2);
+        ctx.fillStyle = bg2;
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
+    });
+
+    // Drop arrow guide (when not dropping)
+    if (!dropping) {
+        ctx.fillStyle = 'rgba(255,215,0,0.7)';
+        ctx.beginPath();
+        ctx.moveTo(W/2, 6); ctx.lineTo(W/2 - 7, 18); ctx.lineTo(W/2 + 7, 18);
+        ctx.closePath(); ctx.fill();
+    }
+}
+
+// ── LOOP ──────────────────────────────────────────────────────────────────
+function loop() {
+    balls.forEach(stepBall);
+
+    // Resolve settled balls
+    const toResolve = balls.filter(b => b.settled && b.bucket >= 0);
+    toResolve.forEach(b => {
+        const mult    = BUCKET_MULTS[b.bucket];
+        const returned = Math.floor(selectedChip * mult);
+        const profit   = returned - selectedChip;
+        tokens += returned;
+        net    += profit;
+        drops++;
+        if (profit > 0) wins++;
+        showWin(profit > 0
+            ? '🎉 ' + mult + 'x — +' + profit + ' tokens!'
+            : profit === 0
+            ? '😐 ' + mult + 'x — Broke even'
+            : '💸 ' + mult + 'x — Lost ' + Math.abs(profit) + ' tokens');
+        b.bucket = -1; // mark processed
+    });
+
+    // Remove processed settled balls after a short display pause
+    balls = balls.filter(b => !(b.settled && b.bucket < 0));
+
+    draw();
+
+    if (balls.length > 0) {
+        animId = requestAnimationFrame(loop);
+    } else {
+        dropping = false;
+        updateUI();
+        animId = null;
+    }
+}
+
+// ── DROP ──────────────────────────────────────────────────────────────────
+document.getElementById('dropBtn').addEventListener('click', () => {
+    if (tokens < selectedChip) return;
+    tokens -= selectedChip;
+    dropping = true;
+    document.getElementById('tokenCount').textContent = tokens;
+    document.getElementById('payoutResult').classList.remove('show');
+    const startX = W / 2 + (Math.random() - 0.5) * 20;
+    balls.push(makeBall(startX));
+    if (!animId) { animId = requestAnimationFrame(loop); }
+    updateUI();
+});
+
+// Allow clicking canvas to aim drop
+canvas.addEventListener('click', e => {
+    if (tokens < selectedChip) return;
+    const rect = canvas.getBoundingClientRect();
+    const cx   = (e.clientX - rect.left) * (W / rect.width);
+    tokens -= selectedChip;
+    dropping = true;
+    document.getElementById('tokenCount').textContent = tokens;
+    document.getElementById('payoutResult').classList.remove('show');
+    balls.push(makeBall(Math.max(BALL_R, Math.min(W - BALL_R, cx))));
+    if (!animId) { animId = requestAnimationFrame(loop); }
+    updateUI();
+});
+
+// ── CHIP SELECTION ────────────────────────────────────────────────────────
+document.querySelectorAll('.chip-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.chip-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        selectedChip = parseInt(btn.dataset.val);
+        document.getElementById('costLabel').textContent = selectedChip + ' per drop';
+        updateUI();
+    });
+});
+
+// ── PAYOUT ────────────────────────────────────────────────────────────────
+function calcPayout() {
+    const dropTiers = Math.floor(drops / 10);
+    const winTiers  = Math.floor(wins  / 5);
+    const dropBonus = Math.floor(tokens * dropTiers * 0.05);
+    const winBonus  = Math.floor(tokens * winTiers  * 0.10);
+    return { dropTiers, winTiers, dropBonus, winBonus, total: dropBonus + winBonus };
+}
+
+function updatePayoutPreview() {
+    const { dropTiers, winTiers, dropBonus, winBonus, total } = calcPayout();
+    document.getElementById('prevDropLabel').textContent = 'Drop bonus (' + dropTiers + '× 5%)';
+    document.getElementById('prevDropVal').textContent   = '+' + dropBonus;
+    document.getElementById('prevWinLabel').textContent  = 'Win bonus (' + winTiers + '× 10%)';
+    document.getElementById('prevWinVal').textContent    = '+' + winBonus;
+    document.getElementById('prevTotal').textContent     = '+' + total + ' tokens';
+    document.getElementById('payoutBtn').disabled = (total === 0);
+}
+
+document.getElementById('payoutBtn').addEventListener('click', () => {
+    const { dropTiers, winTiers, dropBonus, winBonus, total } = calcPayout();
+    if (total === 0) return;
+    tokens += total;
+    let msg = '💰 Payout! ';
+    if (dropTiers > 0) msg += dropTiers + '× drop +' + dropBonus;
+    if (dropTiers > 0 && winTiers > 0) msg += ' · ';
+    if (winTiers  > 0) msg += winTiers  + '× win +'  + winBonus;
+    msg += ' = +' + total + ' tokens!';
+    const el = document.getElementById('payoutResult');
+    el.textContent = msg; el.classList.remove('show');
+    void el.offsetWidth; el.classList.add('show');
+    drops = 0; wins = 0; net = 0;
+    updateUI();
+});
+
+// ── WIN MSG ───────────────────────────────────────────────────────────────
+function showWin(msg) {
+    const el = document.getElementById('winMsg');
+    el.textContent = msg; el.classList.remove('show');
+    void el.offsetWidth; el.classList.add('show');
+}
+
+// ── UI UPDATE ─────────────────────────────────────────────────────────────
+function updateUI() {
+    document.getElementById('tokenCount').textContent = tokens;
+    document.getElementById('dropsEl').textContent    = drops;
+    document.getElementById('winsEl').textContent     = wins;
+    const netEl = document.getElementById('netEl');
+    netEl.textContent = (net >= 0 ? '+' : '') + net;
+    netEl.style.color = net >= 0 ? '#7fff7f' : '#ff7f7f';
+    document.getElementById('dropBtn').disabled = tokens < selectedChip;
+    document.querySelectorAll('.chip-btn').forEach(btn => {
+        btn.disabled = parseInt(btn.dataset.val) > tokens;
+    });
+    updatePayoutPreview();
+    if (tokens < 10) document.getElementById('brokeOverlay').classList.add('visible');
+    else document.getElementById('brokeOverlay').classList.remove('visible');
+}
+
+// ── SECRET STASH ──────────────────────────────────────────────────────────
+let secretTimer = null;
+function triggerSecret() {
+    tokens += 500; updateUI();
+    clearTimeout(secretTimer);
+    const fl = document.getElementById('secretFlash');
+    fl.classList.add('show');
+    secretTimer = setTimeout(() => fl.classList.remove('show'), 2800);
+    document.getElementById('brokeOverlay').classList.remove('visible');
+}
+let keyBuf = '';
+document.addEventListener('keydown', e => {
+    keyBuf += e.key;
+    if (keyBuf.length > 3) keyBuf = keyBuf.slice(-3);
+    if (keyBuf === '777') { keyBuf = ''; triggerSecret(); }
+});
+let tapPositions = [], tapTimer2 = null;
+const tapDotsEl = document.getElementById('tapDots');
+const tapDotEls = Array.from({length:7}, (_,i) => document.getElementById('td'+i));
+function updateTapDots() {
+    tapDotsEl.classList.add('visible');
+    tapDotEls.forEach((d,i) => d.classList.toggle('filled', i < tapPositions.length));
+    clearTimeout(tapTimer2);
+    tapTimer2 = setTimeout(() => { tapPositions = []; tapDotsEl.classList.remove('visible'); tapDotEls.forEach(d => d.classList.remove('filled')); }, 3000);
+}
+function handleTap(x, y) {
+    const tooClose = tapPositions.some(p => Math.hypot(p.x-x,p.y-y) < 60);
+    if (tooClose) return;
+    tapPositions.push({x,y}); updateTapDots();
+    if (tapPositions.length >= 7) { tapPositions = []; clearTimeout(tapTimer2); tapDotsEl.classList.remove('visible'); tapDotEls.forEach(d => d.classList.remove('filled')); triggerSecret(); }
+}
+document.addEventListener('click', e => handleTap(e.clientX, e.clientY));
+document.addEventListener('touchstart', e => { Array.from(e.changedTouches).forEach(t => handleTap(t.clientX, t.clientY)); }, { passive: true });
+
+// ── INIT ──────────────────────────────────────────────────────────────────
+draw();
+updateUI();
+</script>
+</body>
+</html>

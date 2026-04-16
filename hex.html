@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hex</title>
+    <style>
+        :root {
+            --bg-color: #121216;
+            --board-bg: #1e1e24;
+            --empty-fill: #2a2a35;
+            --empty-stroke: #121216;
+            --red-color: #e63946;
+            --red-glow: #ff4d4d;
+            --blue-color: #457b9d;
+            --blue-glow: #4da6ff;
+            --text-main: #f1faee;
+        }
+
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            margin: 0;
+        }
+
+        .layout { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; }
+        .controls { margin-bottom: 20px; display: flex; gap: 10px; }
+        
+        button {
+            padding: 10px 18px; border-radius: 8px; border: none;
+            background: #333; color: white; cursor: pointer; font-weight: bold;
+        }
+        button.active { background: #2a9d8f; }
+
+        .status-container {
+            font-size: 1.4rem; font-weight: bold; margin-bottom: 20px;
+            padding: 10px 40px; border-radius: 30px; background: var(--board-bg);
+        }
+        .status-red { color: var(--red-glow); }
+        .status-blue { color: var(--blue-glow); }
+
+        .svg-container { background: var(--board-bg); padding: 25px; border-radius: 15px; }
+        polygon { cursor: pointer; stroke: var(--empty-stroke); stroke-width: 2; transition: fill 0.2s; }
+        polygon.empty { fill: var(--empty-fill); }
+        polygon.empty:hover { stroke: #fff; }
+        polygon.red { fill: var(--red-color); }
+        polygon.blue { fill: var(--blue-color); }
+        polygon.win-path { stroke: white; stroke-width: 4; filter: drop-shadow(0 0 5px white); }
+
+        .history-panel {
+            background: var(--board-bg); width: 200px; height: 480px;
+            border-radius: 15px; display: flex; flex-direction: column; overflow: hidden;
+        }
+        .history-header { padding: 12px; background: #25252d; text-align: center; font-weight: bold; }
+        #move-log { flex-grow: 1; overflow-y: auto; padding: 10px; font-family: monospace; }
+        .log-entry { padding: 5px; border-bottom: 1px solid #2a2a35; display: flex; justify-content: space-between; }
+    </style>
+</head>
+<body>
+
+    <h1>Hex</h1>
+    
+    <div class="controls">
+        <button id="btn-pvp" class="active" onclick="setMode('pvp')">Player vs Player</button>
+        <button id="btn-pve" onclick="setMode('pve')">Player Vs Bot</button>
+        <button onclick="initGame()">Reset</button>
+    </div>
+
+    <div id="status" class="status-container status-red">Red's Turn</div>
+
+    <div class="layout">
+        <div class="svg-container">
+            <svg id="hex-board"></svg>
+        </div>
+        <div class="history-panel">
+            <div class="history-header">Moves</div>
+            <div id="move-log"></div>
+        </div>
+    </div>
+
+    <script>
+        const size = 11;
+        const R = 20;
+        const W = Math.sqrt(3) * R;
+        const H = 2 * R;
+        let board = [], polygons = [], turn = 1, mode = 'pvp', gameOver = false;
+
+        const neighbors = [[-1,0], [-1,1], [0,-1], [0,1], [1,-1], [1,0]];
+
+        function setMode(m) {
+            mode = m;
+            document.getElementById('btn-pvp').className = m==='pvp'?'active':'';
+            document.getElementById('btn-pve').className = m==='pve'?'active':'';
+            initGame();
+        }
+
+        function initGame() {
+            const svg = document.getElementById('hex-board');
+            svg.innerHTML = ''; board = []; polygons = []; turn = 1; gameOver = false;
+            document.getElementById('move-log').innerHTML = '';
+            updateStatus("Red's Turn", "status-red");
+
+            svg.setAttribute('width', size * W * 1.5 + 40);
+            svg.setAttribute('height', size * H * 0.8 + 40);
+
+            for (let r = 0; r < size; r++) {
+                board[r] = []; polygons[r] = [];
+                for (let c = 0; c < size; c++) {
+                    board[r][c] = 0;
+                    const x = 30 + (c * W) + (r * W / 2);
+                    const y = 30 + (r * H * 0.75);
+                    const p = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+                    let pts = [];
+                    for(let i=0; i<6; i++) {
+                        let a = Math.PI/180 * (60*i - 30);
+                        pts.push(`${x + R * Math.cos(a)},${y + R * Math.sin(a)}`);
+                    }
+                    p.setAttribute("points", pts.join(" "));
+                    p.setAttribute("class", "empty");
+                    p.onclick = () => makeMove(r, c);
+                    polygons[r][c] = p;
+                    svg.appendChild(p);
+                }
+            }
+        }
+
+        function makeMove(r, c) {
+            if (gameOver || board[r][c] !== 0) return;
+            board[r][c] = turn;
+            polygons[r][c].setAttribute("class", turn === 1 ? "red" : "blue");
+            logMove(r, c, turn);
+
+            const win = checkWin(turn, board);
+            if (win) {
+                gameOver = true;
+                win.forEach(p => polygons[p.r][p.c].classList.add('win-path'));
+                updateStatus((turn===1?"Red":"Blue") + " Wins!", turn===1?"status-red":"status-blue");
+                return;
+            }
+
+            turn = turn === 1 ? 2 : 1;
+            updateStatus(turn===1?"Red's Turn":"Blue's Turn", turn===1?"status-red":"status-blue");
+            if (mode === 'pve' && turn === 2) setTimeout(aiMove, 200);
+        }
+
+        function logMove(r, c, p) {
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.style.color = p === 1 ? 'var(--red-glow)' : 'var(--blue-glow)';
+            entry.innerHTML = `<span>P${p}</span><span>${String.fromCharCode(65+c)}${r+1}</span>`;
+            document.getElementById('move-log').prepend(entry);
+        }
+
+        function aiMove() {
+            let bestScore = -Infinity;
+            let bestMoves = [];
+
+            for (let r = 0; r < size; r++) {
+                for (let c = 0; c < size; c++) {
+                    if (board[r][c] === 0) {
+                        let score = evaluate(r, c);
+                        if (score > bestScore) {
+                            bestScore = score;
+                            bestMoves = [{r, c}];
+                        } else if (score === bestScore) {
+                            bestMoves.push({r, c});
+                        }
+                    }
+                }
+            }
+            const m = bestMoves[Math.floor(Math.random() * bestMoves.length)];
+            makeMove(m.r, m.c);
+        }
+
+        function evaluate(r, c) {
+            let score = 0;
+            
+            // 1. Center Control (Primary in opening)
+            const distCenter = Math.abs(5 - r) + Math.abs(5 - c);
+            score += (10 - distCenter);
+
+            // 2. Shortest Path Impact (The "Pathfinder" logic)
+            board[r][c] = 2;
+            let myPath = getPathLength(2, board);
+            board[r][c] = 1;
+            let oppPath = getPathLength(1, board);
+            board[r][c] = 0;
+
+            score += (100 / (myPath + 1));
+            score += (250 / (oppPath + 1)); // Heavier weight on blocking you
+
+            // 3. Virtual Connection (Bridge) logic
+            // Look for patterns like P . P where the '.' is a bridge
+            score += scanForBridges(r, c);
+
+            return score;
+        }
+
+        function scanForBridges(r, c) {
+            let bridgeScore = 0;
+            // Bridge templates (relative coords for the 2 hexes being bridged)
+            const templates = [
+                {d1:[ -1, 0], d2:[ 1, -1]}, {d1:[ -1, 1], d2:[ 1, 0]},
+                {d1:[ 0, -1], d2:[ 0, 1]}
+            ];
+
+            templates.forEach(t => {
+                const r1 = r + t.d1[0], c1 = c + t.d1[1];
+                const r2 = r + t.d2[0], c2 = c + t.d2[1];
+
+                if (inBounds(r1, c1) && inBounds(r2, c2)) {
+                    // If playing here blocks a bridge for the player
+                    if (board[r1][c1] === 1 && board[r2][c2] === 1) bridgeScore += 50;
+                    // If playing here completes a bridge for the bot
+                    if (board[r1][c1] === 2 && board[r2][c2] === 2) bridgeScore += 40;
+                }
+            });
+            return bridgeScore;
+        }
+
+        function getPathLength(player, b) {
+            const dist = Array.from({length: size}, () => Array(size).fill(Infinity));
+            const q = [];
+            for (let i = 0; i < size; i++) {
+                let r = player===1?0:i, c = player===1?i:0;
+                if (b[r][c] === 0 || b[r][c] === player) {
+                    dist[r][c] = (b[r][c] === player) ? 0 : 1;
+                    q.push({r, c, d: dist[r][c]});
+                }
+            }
+            while (q.length > 0) {
+                q.sort((a,b) => a.d - b.d);
+                let {r, c, d} = q.shift();
+                if (d > dist[r][c]) continue;
+                if ((player === 1 && r === size-1) || (player === 2 && c === size-1)) return d;
+                neighbors.forEach(([dr, dc]) => {
+                    let nr = r+dr, nc = c+dc;
+                    if (inBounds(nr, nc)) {
+                        let cost = (b[nr][nc] === player) ? 0 : (b[nr][nc] === 0 ? 1 : Infinity);
+                        if (d + cost < dist[nr][nc]) {
+                            dist[nr][nc] = d + cost;
+                            q.push({r: nr, c: nc, d: dist[nr][nc]});
+                        }
+                    }
+                });
+            }
+            return Infinity;
+        }
+
+        function checkWin(p, b) {
+            let q = [], visited = new Set(), parent = {};
+            for(let i=0; i<size; i++) {
+                let r = p===1?0:i, c = p===1?i:0;
+                if(b[r][c]===p) { q.push({r,c}); visited.add(`${r},${c}`); parent[`${r},${c}`]=null; }
+            }
+            while(q.length > 0) {
+                let curr = q.shift();
+                if((p===1 && curr.r===size-1) || (p===2 && curr.c===size-1)) {
+                    let path = [], k = `${curr.r},${curr.c}`;
+                    while(k) { let [r,c]=k.split(',').map(Number); path.push({r,c}); k=parent[k]; }
+                    return path;
+                }
+                neighbors.forEach(([dr,dc]) => {
+                    let nr=curr.r+dr, nc=curr.c+dc;
+                    if(inBounds(nr, nc) && b[nr][nc]===p && !visited.has(`${nr},${nc}`)) {
+                        visited.add(`${nr},${nc}`); parent[`${nr},${nc}`]=`${curr.r},${curr.c}`; q.push({r:nr,c:nc});
+                    }
+                });
+            }
+            return null;
+        }
+
+        function inBounds(r, c) { return r >= 0 && r < size && c >= 0 && c < size; }
+        function updateStatus(t, c) { const s = document.getElementById('status'); s.innerText = t; s.className = 'status-container ' + c; }
+
+        initGame();
+    </script>
+</body>
+</html>

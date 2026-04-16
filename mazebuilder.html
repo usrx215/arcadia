@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Maze Game v2 - Maze Builder</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+<style>
+  body{font-family:system-ui,Segoe UI,Roboto,Arial;background:#07101a;color:#d7e7f2;display:flex;gap:16px;padding:16px;min-height:100vh}
+  #tools{width:340px;background:#0c1116;border:1px solid #1f2933;padding:12px;border-radius:10px}
+  h1{font-size:16px;margin:0 0 8px}
+  canvas{background:#03060b;border-radius:8px;display:block;border:1px solid #1b2430}
+  label{display:block;margin:8px 0;font-size:13px;color:#9fb0c6}
+  .row{display:flex;gap:8px;align-items:center}
+  button,input,select{background:#071323;color:#d7e7f2;border:1px solid #233042;padding:6px;border-radius:8px;cursor:pointer}
+  .kbd{background:#08131b;padding:3px 6px;border-radius:6px;border:1px solid #18232b;font-family:ui-monospace,monospace}
+  textarea{width:100%;height:72px;background:#07101a;color:#d7e7f2;border:1px solid #1f2b36;padding:6px;border-radius:8px;resize:vertical}
+  .hint{color:#8fa7bf;font-size:13px;margin-top:8px}
+  .toolrow{display:flex;gap:8px;margin-top:8px}
+  .tool{padding:8px 10px;border-radius:8px;border:1px solid #243241;background:#071323;cursor:pointer; display:flex; align-items:center; gap:4px;}
+  .tool.active{outline:2px solid #2f8bff}
+</style>
+</head>
+<body>
+  <div id="tools">
+    <h1>Maze Builder</h1>
+
+    <div class="row" style="gap:6px">
+      <label style="flex:1">Width<input id="bW" type="number" value="21" min="5" step="2" style="width:92px;margin-left:8px"/></label>
+      <label style="flex:1">Height<input id="bH" type="number" value="21" min="5" step="2" style="width:92px;margin-left:8px"/></label>
+    </div>
+
+    <label>Cell px<input id="bCell" type="number" value="20" min="6" max="60" style="width:100px;margin-left:8px"/></label>
+
+    <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+      <button id="new">New (all walls)</button>
+      <button id="autogen">Auto-generate</button>
+      <button id="clear">Clear (open)</button>
+    </div>
+
+    <div class="toolrow">
+      <div id="toolPen" class="tool active"><i class="fas fa-pen"></i> Pen</div>
+      <div id="toolEraser" class="tool"><i class="fas fa-eraser"></i> Eraser</div>
+      <div id="toolStart" class="tool"><i class="fas fa-flag"></i> Start</div>
+      <div id="toolGoal" class="tool"><i class="fas fa-flag-checkered"></i> Goal</div>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button id="validate">Validate</button>
+      <button id="encode">Generate seed</button>
+      <button id="copySeed">Copy seed</button>
+    </div>
+
+    <label style="margin-top:8px">Seed / Export
+      <textarea id="seedOut" placeholder="BM:..."></textarea>
+    </label>
+
+    <label>Import seed
+      <input id="seedIn" placeholder="paste BM:..." />
+      <div style="display:flex;gap:8px;margin-top:6px">
+        <button id="importSeed">Import</button>
+        <button id="applyToGame">Copy game loader snippet</button>
+      </div>
+    </label>
+
+    <div class="hint">Drag on canvas to draw/erase. Use Start/Goal tools then click target cell. Double-click toggles a cell.</div>
+  </div>
+
+  <div style="flex:1;display:flex;flex-direction:column;gap:12px;align-items:center">
+    <canvas id="builder" width="640" height="640"></canvas>
+    <div style="display:flex;gap:12px;align-items:center">
+      <div class="kbd">Start: click Start then click cell</div>
+      <div class="kbd">Goal: click Goal then click cell</div>
+    </div>
+  </div>
+
+<script>
+const canvas = document.getElementById('builder');
+const ctx = canvas.getContext('2d');
+const bW = document.getElementById('bW');
+const bH = document.getElementById('bH');
+const bCell = document.getElementById('bCell');
+const seedOut = document.getElementById('seedOut');
+const seedIn = document.getElementById('seedIn');
+
+let W = parseInt(bW.value,10);
+let H = parseInt(bH.value,10);
+let CELL = parseInt(bCell.value,10);
+let grid = [];
+let start = {x:1,y:1}, goal = {x:W-2,y:H-2};
+
+function clampOdd(n){ n = Math.max(5, Math.floor(n)); if(n%2===0) n--; return n; }
+
+function initGrid(w,h,fillWall=false){
+  W = clampOdd(w);
+  H = clampOdd(h);
+  grid = Array.from({length:H}, ()=>Array(W).fill(fillWall?1:0));
+  for(let x=0;x<W;x++){ grid[0][x]=1; grid[H-1][x]=1; }
+  for(let y=0;y<H;y++){ grid[y][0]=1; grid[y][W-1]=1; }
+  start = {x:1,y:1}; goal = {x:W-2,y:H-2};
+  resizeCanvas(); draw();
+}
+
+function resizeCanvas(){
+  CELL = Math.max(6, Math.min(60, parseInt(bCell.value,10)||CELL));
+  canvas.width = W * CELL;
+  canvas.height = H * CELL;
+}
+
+function draw(){
+  ctx.fillStyle = '#01040a'; ctx.fillRect(0,0,canvas.width,canvas.height);
+  for(let y=0;y<H;y++){
+    for(let x=0;x<W;x++){
+      if(grid[y][x]===1){ ctx.fillStyle = '#101826'; ctx.fillRect(x*CELL,y*CELL,CELL,CELL); }
+      else { ctx.fillStyle = '#0c1220'; ctx.fillRect(x*CELL,y*CELL,CELL,CELL); }
+    }
+  }
+  ctx.strokeStyle = '#0b1520'; ctx.lineWidth = 1;
+  for(let x=0;x<=W;x++){ ctx.beginPath(); ctx.moveTo(x*CELL,0); ctx.lineTo(x*CELL,H*CELL); ctx.stroke(); }
+  for(let y=0;y<=H;y++){ ctx.beginPath(); ctx.moveTo(0,y*CELL); ctx.lineTo(W*CELL,y*CELL); ctx.stroke(); }
+  ctx.fillStyle = '#6ee7ff'; ctx.fillRect(start.x*CELL+CELL*0.15, start.y*CELL+CELL*0.15, CELL*0.7, CELL*0.7);
+  ctx.fillStyle = '#a7f3d0'; ctx.fillRect(goal.x*CELL+CELL*0.15, goal.y*CELL+CELL*0.15, CELL*0.7, CELL*0.7);
+}
+
+function canvasPosToCell(ev){
+  const rect = canvas.getBoundingClientRect();
+  const cx = (ev.clientX ?? ev.touches?.[0]?.clientX) - rect.left;
+  const cy = (ev.clientY ?? ev.touches?.[0]?.clientY) - rect.top;
+  const x = Math.floor(cx / CELL);
+  const y = Math.floor(cy / CELL);
+  return {x,y};
+}
+
+// tools
+let mode = 'pen'; // pen, eraser, start, goal
+const tools = {pen: document.getElementById('toolPen'), eraser: document.getElementById('toolEraser'), start: document.getElementById('toolStart'), goal: document.getElementById('toolGoal')};
+function setMode(m){
+  mode = m;
+  for(const k in tools) tools[k].classList.toggle('active', k===m);
+}
+tools.pen.addEventListener('click', ()=>setMode('pen'));
+tools.eraser.addEventListener('click', ()=>setMode('eraser'));
+tools.start.addEventListener('click', ()=>setMode('start'));
+tools.goal.addEventListener('click', ()=>setMode('goal'));
+
+// drawing interactions: drag to draw/erase
+let drawing = false;
+let activeAction = null; // 'draw' or 'erase'
+
+function handlePointerDown(ev){
+  const {x,y} = canvasPosToCell(ev);
+  if(x<0||y<0||x>=W||y>=H) return;
+  if(mode==='pen'){ grid[y][x] = 1; activeAction='draw'; drawing=true; }
+  else if(mode==='eraser'){ grid[y][x] = 0; activeAction='erase'; drawing=true; }
+  else if(mode==='start'){ if(grid[y][x]===0) start={x,y}; }
+  else if(mode==='goal'){ if(grid[y][x]===0) goal={x,y}; }
+  draw();
+  ev.preventDefault();
+}
+function handlePointerMove(ev){
+  if(!drawing) return;
+  const {x,y} = canvasPosToCell(ev);
+  if(x<0||y<0||x>=W||y>=H) return;
+  if(activeAction==='draw') grid[y][x]=1;
+  else if(activeAction==='erase') grid[y][x]=0;
+  draw();
+  ev.preventDefault();
+}
+function handlePointerUp(){ drawing=false; activeAction=null; }
+
+canvas.addEventListener('pointerdown', handlePointerDown);
+canvas.addEventListener('pointermove', handlePointerMove);
+window.addEventListener('pointerup', handlePointerUp);
+
+// dblclick toggles cell
+canvas.addEventListener('dblclick', (ev)=>{
+  const {x,y} = canvasPosToCell(ev);
+  if(x<0||y<0||x>=W||y>=H) return;
+  grid[y][x] = grid[y][x] ? 0 : 1;
+  draw();
+});
+
+// keyboard shortcuts
+document.addEventListener('keydown', (e)=>{
+  if(e.key==='g') { initGrid(parseInt(bW.value,10)||21, parseInt(bH.value,10)||21, true); generateAuto(); }
+  if(e.key==='c') initGrid(parseInt(bW.value,10)||21, parseInt(bH.value,10)||21, false);
+});
+
+// auto-generate (same algorithm as game)
+function xmur3_local(str){ let h=1779033703^str.length; for(let i=0;i<str.length;i++){h=Math.imul(h^str.charCodeAt(i),3432918353); h=h<<13|h>>>19;} return ()=>{h=Math.imul(h^h>>>16,2246822507); h=Math.imul(h^h>>>13,3266489909); return (h^h>>>16)>>>0;}; }
+function mulberry32_local(a){ return function(){ let t=a+=0x6D2B79F5; t=Math.imul(t^t>>>15,t|1); t^=t+Math.imul(t^t>>>7,t|61); return ((t^t>>>14)>>>0)/4294967296; } }
+
+function generateAuto(seedStr){
+  const rng = seedStr ? mulberry32_local(xmur3_local(seedStr)()) : Math.random;
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++) grid[y][x]=1;
+  const stack = [[1,1]]; grid[1][1] = 0;
+  while(stack.length){
+    const [cx,cy] = stack[stack.length-1];
+    const dirs = [[0,-2],[0,2],[2,0],[-2,0]];
+    for(let i=dirs.length-1;i>0;i--){ const j = Math.floor((rng()*(i+1))); [dirs[i],dirs[j]]=[dirs[j],dirs[i]]; }
+    let carved=false;
+    for(const [dx,dy] of dirs){
+      const nx = cx+dx, ny = cy+dy;
+      if(ny>0 && ny<H-1 && nx>0 && nx<W-1 && grid[ny][nx]===1){
+        grid[cy+dy/2][cx+dx/2]=0; grid[ny][nx]=0;
+        stack.push([nx,ny]); carved=true; break;
+      }
+    }
+    if(!carved) stack.pop();
+  }
+  start={x:1,y:1}; goal=farthestFrom(start);
+  draw();
+}
+
+function bfs(sx,sy){
+  const q=[[sx,sy]]; const dist=Array.from({length:H},()=>Array(W).fill(Infinity)); dist[sy][sx]=0;
+  const moves=[[1,0],[-1,0],[0,1],[0,-1]];
+  while(q.length){
+    const [x,y]=q.shift();
+    for(const [dx,dy] of moves){
+      const nx=x+dx, ny=y+dy;
+      if(nx>=0 && ny>=0 && nx<W && ny<H && grid[ny][nx]===0 && dist[ny][nx]===Infinity){
+        dist[ny][nx]=dist[y][x]+1; q.push([nx,ny]);
+      }
+    }
+  }
+  return dist;
+}
+
+function farthestFrom(pos){
+  const dist=bfs(pos.x,pos.y); let max=-1, p={x:pos.x,y:pos.y};
+  for(let y=1;y<H;y+=2) for(let x=1;x<W;x+=2) if(dist[y][x]!==Infinity && dist[y][x]>max){ max=dist[y][x]; p={x,y}; }
+  return p;
+}
+
+function hasSolution(){
+  if(!start || !goal) return false;
+  const dist=bfs(start.x,start.y);
+  return dist[goal.y][goal.x]!==Infinity;
+}
+
+// encode/decode BM:
+function encodeBM(){
+  const obj = {W,H,start,goal,wallRows:[]};
+  for(let y=0;y<H;y++){ let bits=''; for(let x=0;x<W;x++) bits += (grid[y][x]? '1':'0'); obj.wallRows.push(bits); }
+  const json = JSON.stringify(obj);
+  const b64 = btoa(unescape(encodeURIComponent(json))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  return 'BM:' + b64;
+}
+function decodeBM(seed){
+  if(!seed || !seed.startsWith('BM:')) return null;
+  try{
+    const b64 = seed.slice(3).replace(/-/g,'+').replace(/_/g,'/');
+    const pad = b64.length % 4 ? '='.repeat(4 - (b64.length % 4)) : '';
+    const json = decodeURIComponent(escape(atob(b64 + pad)));
+    return JSON.parse(json);
+  } catch(e){ return null; }
+}
+
+// UI wiring
+document.getElementById('new').addEventListener('click', ()=>initGrid(parseInt(bW.value,10)||21, parseInt(bH.value,10)||21, true));
+document.getElementById('clear').addEventListener('click', ()=>initGrid(parseInt(bW.value,10)||21, parseInt(bH.value,10)||21, false));
+document.getElementById('autogen').addEventListener('click', ()=>{ initGrid(parseInt(bW.value,10)||21, parseInt(bH.value,10)||21, true); generateAuto(); });
+
+document.getElementById('validate').addEventListener('click', ()=> seedOut.value = hasSolution() ? 'OK — solution exists' : 'Invalid — no path from Start to Goal');
+document.getElementById('encode').addEventListener('click', ()=>{
+  if(!hasSolution()){ seedOut.value = 'Cannot encode — no valid solution. Set start/goal and ensure a path.'; return; }
+  seedOut.value = encodeBM();
+});
+document.getElementById('copySeed').addEventListener('click', ()=> navigator.clipboard.writeText(seedOut.value || '').then(()=>{ seedOut.style.borderColor='#2f8bff'; setTimeout(()=>seedOut.style.borderColor='',300); }, ()=>{} ));
+
+document.getElementById('importSeed').addEventListener('click', ()=>{
+  const obj = decodeBM(seedIn.value.trim());
+  if(!obj){ alert('Invalid BM seed'); return; }
+  initGrid(obj.W,obj.H,true);
+  for(let y=0;y<obj.wallRows.length && y<H;y++){
+    const row = obj.wallRows[y];
+    for(let x=0;x<Math.min(row.length,W);x++) grid[y][x] = row[x]==='1'?1:0;
+  }
+  if(obj.start) start = obj.start;
+  if(obj.goal) goal = obj.goal;
+  draw();
+  seedOut.value = 'Imported OK';
+});
+
+document.getElementById('applyToGame').addEventListener('click', ()=>{
+  const snippet = `// BM: seed loader — paste into your game's JS\n(function(){\n  function decodeBM(seed){ if(!seed||!seed.startsWith('BM:')) return null; try{ const b=seed.slice(3).replace(/-/g,'+').replace(/_/g,'/'); const pad=b.length%4?\"=\".repeat(4-(b.length%4)):\"\"; const json=decodeURIComponent(escape(atob(b+pad))); return JSON.parse(json);}catch(e){return null;}}\n  const bm=${JSON.stringify(seedOut.value)};\n  const obj=decodeBM(bm);\n  if(obj) console.log('BM loaded:', obj);\n})();`;
+  navigator.clipboard.writeText(snippet).then(()=>alert('Game loader snippet copied'));
+});
+
+// initial grid
+initGrid(W,H,true);
+</script>
+</body>
+</html>

@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Slot Machine</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/x-icon" href="images/slots.png">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background: linear-gradient(-45deg, #ffff00, #20b2aa, #00ff00);
+            background-size: 400% 400%;
+            animation: gradient 15s ease infinite;
+            min-height: 100vh;
+            font-family: 'Ubuntu', Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            color: #fff;
+            padding: 2rem 1rem;
+        }
+
+        @keyframes gradient {
+            0%   { background-position: 0% 50%; }
+            50%  { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            letter-spacing: 0.02em;
+        }
+
+        .machine {
+            background: rgba(0,0,0,0.25);
+            backdrop-filter: blur(8px);
+            border: 1.5px solid rgba(255,255,255,0.35);
+            border-radius: 20px;
+            padding: 2rem 2.5rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1.1rem;
+            min-width: 340px;
+            max-width: 420px;
+            width: 100%;
+        }
+
+        .token-bar {
+            width: 100%;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 10px;
+            padding: 10px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .token-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.75; }
+        .token-count { font-size: 1.4rem; font-weight: 700; }
+        .token-cost  { font-size: 11px; opacity: 0.65; }
+
+        .reels { display: flex; gap: 14px; }
+
+        .reel {
+            width: 80px; height: 80px;
+            background: rgba(255,255,255,0.15);
+            border: 2px solid rgba(255,255,255,0.5);
+            border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 2.25rem; line-height: 1;
+            overflow: hidden;
+            transition: border-color 0.2s;
+        }
+        .reel.spinning { border-color: rgba(255,255,255,0.8); }
+        .reel.landing  {
+            animation: thud 0.18s ease-out;
+            border-color: #7fff7f;
+            box-shadow: 0 0 12px rgba(127,255,127,0.5);
+        }
+        @keyframes thud {
+            0%   { transform: scale(1); }
+            40%  { transform: scale(1.14); }
+            100% { transform: scale(1); }
+        }
+        .reel-sym { display: block; }
+        .reel-sym.blur { filter: blur(2px); }
+
+        .win-msg {
+            font-size: 1rem; font-weight: 500;
+            color: #fff; min-height: 1.5em;
+            text-shadow: 0 1px 4px rgba(0,0,0,0.3);
+        }
+        .win-msg.show { animation: pop 0.25s ease-out; }
+        @keyframes pop {
+            0%   { transform: scale(0.75); opacity: 0; }
+            100% { transform: scale(1);    opacity: 1; }
+        }
+
+        .stats { display: flex; gap: 10px; width: 100%; }
+        .stat {
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 10px;
+            padding: 8px 12px; flex: 1; text-align: center;
+        }
+        .stat-label { font-size: 10px; opacity: 0.8; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 2px; }
+        .stat-val   { font-size: 1.2rem; font-weight: 700; }
+
+        .payout-preview {
+            width: 100%;
+            background: rgba(255,215,0,0.1);
+            border: 1px solid rgba(255,215,0,0.35);
+            border-radius: 10px;
+            padding: 10px 14px;
+            font-size: 12px; line-height: 1.7; text-align: left; opacity: 0.9;
+        }
+        .preview-title { font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; opacity: 0.75; margin-bottom: 4px; }
+        .bonus-line { display: flex; justify-content: space-between; }
+        .bonus-val  { font-weight: 700; }
+        .total-line {
+            display: flex; justify-content: space-between;
+            border-top: 1px solid rgba(255,215,0,0.3);
+            margin-top: 4px; padding-top: 4px;
+            font-weight: 700; font-size: 13px;
+        }
+
+        .payout-result {
+            width: 100%;
+            background: rgba(255,215,0,0.15);
+            border: 1px solid rgba(255,215,0,0.5);
+            border-radius: 10px;
+            padding: 10px 14px;
+            font-size: 0.9rem; font-weight: 500; text-align: center;
+            display: none;
+        }
+        .payout-result.show { display: block; animation: pop 0.3s ease-out; }
+
+        .btn-row { display: flex; gap: 10px; width: 100%; }
+
+        button {
+            font-family: 'Ubuntu', Arial, sans-serif;
+            font-weight: 700; cursor: pointer;
+            border-radius: 10px;
+            border: 2px solid rgba(255,255,255,0.6);
+            background: rgba(255,255,255,0.2);
+            color: #fff; letter-spacing: 0.04em;
+            transition: background 0.15s, transform 0.1s;
+        }
+        button:hover:not(:disabled) { background: rgba(255,255,255,0.35); }
+        button:active:not(:disabled) { transform: scale(0.97); }
+        button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        #spinButton   { flex: 2; padding: 12px 20px; font-size: 1.1rem; }
+        #payoutButton {
+            flex: 1; padding: 12px 16px; font-size: 0.95rem;
+            border-color: rgba(255,215,0,0.7);
+            background: rgba(255,215,0,0.2);
+        }
+        #payoutButton:hover:not(:disabled) { background: rgba(255,215,0,0.35); }
+
+        .divider { width: 100%; border: none; border-top: 1px solid rgba(255,255,255,0.2); }
+
+        .payout-title { font-size: 11px; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.08em; align-self: flex-start; }
+        .payout-grid  { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; width: 100%; }
+        .payout-item  { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+        .payout-item .ps { font-size: 1.2rem; }
+        .payout-item .pp { font-size: 11px; opacity: 0.75; }
+        .payout-item .pp span { font-weight: 700; opacity: 1; }
+
+        /* BROKE OVERLAY */
+        .broke-overlay {
+            display: none; position: fixed; inset: 0;
+            background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+            z-index: 100; flex-direction: column; align-items: center; justify-content: center;
+        }
+        .broke-overlay.visible { display: flex; }
+        .broke-box {
+            background: rgba(0,0,0,0.65);
+            border: 2px solid rgba(255,255,255,0.4);
+            border-radius: 20px; padding: 2rem 2.5rem; max-width: 340px;
+            text-align: center; display: flex; flex-direction: column; gap: 0.85rem;
+        }
+        .broke-box h2 { font-size: 1.6rem; font-weight: 700; }
+        .broke-box p  { font-size: 0.95rem; opacity: 0.85; line-height: 1.6; }
+        .broke-box .hint { font-size: 0.82rem; opacity: 0.55; margin-top: 4px; }
+
+        /* SECRET FLASH */
+        .secret-flash {
+            position: fixed; top: 0; left: 0; right: 0;
+            padding: 14px;
+            background: rgba(0,0,0,0.8);
+            color: #ffd700;
+            font-size: 1.1rem; font-weight: 700; text-align: center;
+            z-index: 200; letter-spacing: 0.05em;
+            transform: translateY(-100%);
+            transition: transform 0.3s ease;
+        }
+        .secret-flash.show { transform: translateY(0); }
+
+        /* TAP DOTS */
+        .tap-dots {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 8px; z-index: 200;
+            opacity: 0; transition: opacity 0.3s; pointer-events: none;
+        }
+        .tap-dots.visible { opacity: 1; }
+        .tap-dot {
+            width: 10px; height: 10px; border-radius: 50%;
+            border: 2px solid rgba(255,255,255,0.6);
+            background: transparent; transition: background 0.15s;
+        }
+        .tap-dot.filled { background: #ffd700; border-color: #ffd700; }
+    </style>
+</head>
+<body>
+
+<h1>Slot Machine</h1>
+
+<div class="machine">
+
+    <div class="token-bar">
+        <span class="token-label">🪙 Tokens</span>
+        <span class="token-count" id="tokenCount">500</span>
+        <span class="token-cost">10 per spin</span>
+    </div>
+
+    <div class="reels">
+        <div class="reel" id="r0"><span class="reel-sym" id="s0">7️⃣</span></div>
+        <div class="reel" id="r1"><span class="reel-sym" id="s1">🔔</span></div>
+        <div class="reel" id="r2"><span class="reel-sym" id="s2">🍒</span></div>
+    </div>
+
+    <div class="win-msg" id="winMsg"></div>
+
+    <div class="stats">
+        <div class="stat"><div class="stat-label">Points</div><div class="stat-val" id="pts">0</div></div>
+        <div class="stat"><div class="stat-label">Spins</div><div class="stat-val" id="spins">0</div></div>
+        <div class="stat"><div class="stat-label">Wins</div><div class="stat-val" id="wins">0</div></div>
+    </div>
+
+    <div class="payout-preview">
+        <div class="preview-title">Payout preview</div>
+        <div class="bonus-line"><span id="prevSpinLabel">Spin bonus (0× 5%)</span><span class="bonus-val" id="prevSpinVal">+0</span></div>
+        <div class="bonus-line"><span id="prevPtsLabel">Point bonus (0× 10%)</span><span class="bonus-val" id="prevPtsVal">+0</span></div>
+        <div class="total-line"><span>Total payout</span><span id="prevTotal">+0 tokens</span></div>
+    </div>
+
+    <div class="payout-result" id="payoutResult"></div>
+
+    <div class="btn-row">
+        <button id="spinButton">Spin</button>
+        <button id="payoutButton">💰 Payout</button>
+    </div>
+
+    <hr class="divider">
+    <div class="payout-title">Triple match payouts</div>
+    <div class="payout-grid">
+        <div class="payout-item"><span class="ps">7️⃣</span><span class="pp"><span>100</span>pts</span></div>
+        <div class="payout-item"><span class="ps">🏆</span><span class="pp"><span>50</span>pts</span></div>
+        <div class="payout-item"><span class="ps">🔔</span><span class="pp"><span>30</span>pts</span></div>
+        <div class="payout-item"><span class="ps">🪙</span><span class="pp"><span>20</span>pts</span></div>
+        <div class="payout-item"><span class="ps">🍒</span><span class="pp"><span>10</span>pts</span></div>
+    </div>
+
+</div>
+
+<!-- BROKE OVERLAY -->
+<div class="broke-overlay" id="brokeOverlay">
+    <div class="broke-box">
+        <h2>Out of tokens!</h2>
+        <p>You're all out. But there might be a secret stash somewhere...</p>
+        <p class="hint">Psst: type <strong>777</strong> on your keyboard,<br>or tap 7 different spots on the screen.</p>
+    </div>
+</div>
+
+<!-- SECRET FLASH -->
+<div class="secret-flash" id="secretFlash">🎰 SECRET STASH UNLOCKED — +500 TOKENS 🎰</div>
+
+<!-- TAP PROGRESS DOTS -->
+<div class="tap-dots" id="tapDots">
+    <div class="tap-dot" id="td0"></div>
+    <div class="tap-dot" id="td1"></div>
+    <div class="tap-dot" id="td2"></div>
+    <div class="tap-dot" id="td3"></div>
+    <div class="tap-dot" id="td4"></div>
+    <div class="tap-dot" id="td5"></div>
+    <div class="tap-dot" id="td6"></div>
+</div>
+
+<script>
+    const symbols = ["7️⃣","🔔","🍋","🍊","🍌","🍒","🍉","🪙","💵","🏆"];
+    const payouts = {"7️⃣":100,"🏆":50,"🔔":30,"🪙":20,"🍒":10};
+
+    let tokens = 500, points = 0, spins = 0, wins = 0;
+    let spinning = false, intervals = [];
+
+    const symEls        = [document.getElementById('s0'), document.getElementById('s1'), document.getElementById('s2')];
+    const reelEls       = [document.getElementById('r0'), document.getElementById('r1'), document.getElementById('r2')];
+    const tokenCountEl  = document.getElementById('tokenCount');
+    const ptsEl         = document.getElementById('pts');
+    const spinsEl       = document.getElementById('spins');
+    const winsEl        = document.getElementById('wins');
+    const winMsg        = document.getElementById('winMsg');
+    const spinBtn       = document.getElementById('spinButton');
+    const payoutBtn     = document.getElementById('payoutButton');
+    const brokeOverlay  = document.getElementById('brokeOverlay');
+    const secretFlash   = document.getElementById('secretFlash');
+    const tapDots       = document.getElementById('tapDots');
+    const tapDotEls     = Array.from({length:7}, (_,i) => document.getElementById('td'+i));
+    const payoutResult  = document.getElementById('payoutResult');
+    const prevSpinLabel = document.getElementById('prevSpinLabel');
+    const prevSpinVal   = document.getElementById('prevSpinVal');
+    const prevPtsLabel  = document.getElementById('prevPtsLabel');
+    const prevPtsVal    = document.getElementById('prevPtsVal');
+    const prevTotal     = document.getElementById('prevTotal');
+
+    // ── PAYOUT CALC ───────────────────────────────────────────────────────
+    function calcPayout() {
+        const spinTiers  = Math.floor(spins  / 25);
+        const pointTiers = Math.floor(points / 250);
+        const spinBonus  = Math.floor(tokens * spinTiers  * 0.05);
+        const ptBonus    = Math.floor(tokens * pointTiers * 0.10);
+        return { spinTiers, pointTiers, spinBonus, ptBonus, total: spinBonus + ptBonus };
+    }
+
+    function updatePayoutPreview() {
+        const { spinTiers, pointTiers, spinBonus, ptBonus, total } = calcPayout();
+        prevSpinLabel.textContent = 'Spin bonus (' + spinTiers + '\u00d7 5%)';
+        prevSpinVal.textContent   = '+' + spinBonus;
+        prevPtsLabel.textContent  = 'Point bonus (' + pointTiers + '\u00d7 10%)';
+        prevPtsVal.textContent    = '+' + ptBonus;
+        prevTotal.textContent     = '+' + total + ' tokens';
+        payoutBtn.disabled = (total === 0);
+    }
+
+    function updateUI() {
+        tokenCountEl.textContent = tokens;
+        ptsEl.textContent   = points;
+        spinsEl.textContent = spins;
+        winsEl.textContent  = wins;
+        updatePayoutPreview();
+        if (tokens < 10) {
+            brokeOverlay.classList.add('visible');
+            spinBtn.disabled = true;
+        } else {
+            brokeOverlay.classList.remove('visible');
+            if (!spinning) spinBtn.disabled = false;
+        }
+    }
+
+    // ── SPIN ─────────────────────────────────────────────────────────────
+    function rand() { return symbols[Math.floor(Math.random() * symbols.length)]; }
+
+    function stopReel(i, result, onDone) {
+        clearInterval(intervals[i]);
+        symEls[i].textContent = result;
+        symEls[i].classList.remove('blur');
+        reelEls[i].classList.remove('spinning');
+        reelEls[i].classList.add('landing');
+        setTimeout(() => {
+            reelEls[i].classList.remove('landing');
+            if (onDone) onDone();
+        }, 200);
+    }
+
+    function showWin(msg) {
+        winMsg.textContent = msg;
+        winMsg.classList.remove('show');
+        void winMsg.offsetWidth;
+        winMsg.classList.add('show');
+    }
+
+    spinBtn.addEventListener('click', () => {
+        if (spinning || tokens < 10) return;
+        spinning = true;
+        spinBtn.disabled = true;
+        payoutBtn.disabled = true;
+        payoutResult.classList.remove('show');
+        winMsg.textContent = '';
+
+        tokens -= 10;
+        spins++;
+        tokenCountEl.textContent = tokens;
+        spinsEl.textContent = spins;
+
+        const results = [rand(), rand(), rand()];
+        reelEls.forEach(r => r.classList.add('spinning'));
+        symEls.forEach(s => s.classList.add('blur'));
+
+        intervals = [0,1,2].map(i =>
+            setInterval(() => { symEls[i].textContent = rand(); }, 60 + i * 10)
+        );
+
+        [700, 1150, 1600].forEach((t, i) => {
+            setTimeout(() => {
+                stopReel(i, results[i], i === 2 ? () => {
+                    spinning = false;
+                    const [a, b, c] = results;
+                    if (a === b && b === c) {
+                        const pts = payouts[a] || 5;
+                        points += pts;
+                        wins++;
+                        showWin('🎉 ' + a + a + a + ' — +' + pts + ' pts!');
+                    } else if (a === b || b === c || a === c) {
+                        showWin('So close... two of a kind!');
+                    } else {
+                        showWin('');
+                    }
+                    updateUI();
+                } : null);
+            }, t);
+        });
+    });
+
+    // ── PAYOUT ────────────────────────────────────────────────────────────
+    payoutBtn.addEventListener('click', () => {
+        const { spinTiers, pointTiers, spinBonus, ptBonus, total } = calcPayout();
+        if (total === 0) return;
+
+        tokens += total;
+
+        let msg = '💰 Payout! ';
+        if (spinTiers > 0)  msg += spinTiers + '× spin bonus +' + spinBonus;
+        if (spinTiers > 0 && pointTiers > 0) msg += ' · ';
+        if (pointTiers > 0) msg += pointTiers + '× point bonus +' + ptBonus;
+        msg += ' = +' + total + ' tokens!';
+
+        payoutResult.textContent = msg;
+        payoutResult.classList.remove('show');
+        void payoutResult.offsetWidth;
+        payoutResult.classList.add('show');
+
+        points = 0; spins = 0; wins = 0;
+        updateUI();
+    });
+
+    // ── SECRET STASH ──────────────────────────────────────────────────────
+    let secretTimer = null;
+    function triggerSecret() {
+        if (tokens >= 10) return;
+        tokens += 500;
+        updateUI();
+        clearTimeout(secretTimer);
+        secretFlash.classList.add('show');
+        secretTimer = setTimeout(() => secretFlash.classList.remove('show'), 2800);
+    }
+
+    // Keyboard: type 777
+    let keyBuf = '';
+    document.addEventListener('keydown', e => {
+        keyBuf += e.key;
+        if (keyBuf.length > 3) keyBuf = keyBuf.slice(-3);
+        if (keyBuf === '777') { keyBuf = ''; triggerSecret(); }
+    });
+
+    // Screen: 7 taps in clearly different spots (>= 60px apart from all previous)
+    let tapPositions = [];
+    let tapTimer = null;
+    const tapDotContainer = tapDots;
+
+    function updateTapDots() {
+        tapDotContainer.classList.add('visible');
+        tapDotEls.forEach((d, i) => d.classList.toggle('filled', i < tapPositions.length));
+        clearTimeout(tapTimer);
+        tapTimer = setTimeout(() => {
+            tapPositions = [];
+            tapDotContainer.classList.remove('visible');
+            tapDotEls.forEach(d => d.classList.remove('filled'));
+        }, 3000);
+    }
+
+    function handleTap(x, y) {
+        const tooClose = tapPositions.some(p => Math.hypot(p.x - x, p.y - y) < 60);
+        if (tooClose) return;
+        tapPositions.push({x, y});
+        updateTapDots();
+        if (tapPositions.length >= 7) {
+            tapPositions = [];
+            clearTimeout(tapTimer);
+            tapDotContainer.classList.remove('visible');
+            tapDotEls.forEach(d => d.classList.remove('filled'));
+            triggerSecret();
+        }
+    }
+
+    document.addEventListener('click', e => handleTap(e.clientX, e.clientY));
+    document.addEventListener('touchstart', e => {
+        Array.from(e.changedTouches).forEach(t => handleTap(t.clientX, t.clientY));
+    }, { passive: true });
+
+    updateUI();
+</script>
+</body>
+</html>

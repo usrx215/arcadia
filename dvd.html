@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="x-ua-compatible" content="ie=edge,chrome=1" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,shrink-to-fit=no"
+    />
+    <meta name="description" content="Bouncing DVD Logo." />
+    <title>Bouncing DVD Logo</title>
+    <link rel="icon" type="image/x-icon" href="https://usrx215.github.io/scgames/dvd.png">
+    <style>
+       html,
+body,
+main,
+canvas {
+  background: #111;
+  border: 0;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+/* https://github.com/processing/p5.js/issues/2619 */
+canvas {
+  display: block;
+}
+</style>
+  </head>
+  <body>
+    <!-- Google tag (gtag.js) -->
+    <script
+      async
+      defer
+      src="https://www.googletagmanager.com/gtag/js?id=G-2NYQESPF9Y"
+    ></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag() {
+        dataLayer.push(arguments);
+      }
+      gtag("js", new Date());
+      gtag("config", "G-2NYQESPF9Y");
+    </script>
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js"
+      integrity="sha512-bcfltY+lNLlNxz38yBBm/HLaUB1gTV6I0e+fahbF9pS6roIdzUytozWdnFV8ZnM6cSAG5EbmO0ag0a/fLZSG4Q=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    ></script>
+    <script>
+       new p5(function (sketch) {
+  var images = [];
+  var imageIndex = 0;
+  var position = sketch.createVector(0, 0);
+  var velocity = p5.Vector.fromAngle(45);
+  velocity.mult(5);
+
+  /**
+   * Checks boundary collision.
+   *
+   * @param {p5.Image} image
+   * @return {boolean}
+   */
+  function checkBoundaryCollision(image) {
+    var hasCollision = false;
+
+    // left or right collision
+    if (position.x < 0 || position.x + image.width > sketch.width) {
+      velocity.x *= -1;
+      hasCollision = true;
+    }
+
+    // top or bottom collision
+    if (position.y < 0 || position.y + image.height > sketch.height) {
+      velocity.y *= -1;
+      hasCollision = true;
+    }
+
+    return hasCollision;
+  }
+
+  /**
+   * Preload.
+   */
+  sketch.preload = function () {
+    for (var i = 1; i < 8; i++) {
+      var image = sketch.loadImage("https://remarkablemark.org/Bouncing-DVD-Logo/assets/dvd" + i + ".svg");
+      images.push(image);
+    }
+  };
+
+  /**
+   * Setup.
+   */
+  sketch.setup = function () {
+    sketch.createCanvas(window.innerWidth, window.innerHeight);
+  };
+
+  /**
+   * Draw.
+   */
+  sketch.draw = function () {
+    sketch.background("#111");
+    var image = images[imageIndex];
+    var hasCollision = checkBoundaryCollision(image);
+    if (hasCollision) {
+      imageIndex++;
+      if (imageIndex + 1 > images.length) {
+        imageIndex = 0;
+      }
+      image = images[imageIndex];
+    }
+    position.add(velocity);
+    sketch.image(image, position.x, position.y);
+  };
+});
+    </script>
+  <script defer src="https://static.cloudflareinsights.com/beacon.min.js/vcd15cbe7772f49c399c6a5babf22c1241717689176015" integrity="sha512-ZpsOmlRQV6y907TI0dKBHq9Md29nnaEIPlkf84rnaERnq6zvWvPUqr2ft8M1aS28oN72PdrCzSjY4U6VaAw1EQ==" data-cf-beacon='{"rayId":"8fddcc873a3f2980","version":"2024.10.5","r":1,"token":"c5bcaa3034184f60a8338df8baf0ccfb","serverTiming":{"name":{"cfExtPri":true,"cfL4":true,"cfSpeedBrain":true,"cfCacheStatus":true}}}' crossorigin="anonymous"></script>
+</body>
+</html>

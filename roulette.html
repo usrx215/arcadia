@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Roulette</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link rel="icon" type="image/x-icon" href="images/roulette.png">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    background: linear-gradient(-45deg, #ffff00, #20b2aa, #00ff00);
+    background-size: 400% 400%;
+    animation: gradient 15s ease infinite;
+    min-height: 100vh;
+    font-family: 'Ubuntu', Arial, sans-serif;
+    display: flex; flex-direction: column;
+    justify-content: center; align-items: center;
+    text-align: center; color: #fff;
+    padding: 2rem 1rem;
+}
+@keyframes gradient {
+    0%   { background-position: 0% 50%; }
+    50%  { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+h1 {
+    font-size: 2.5rem; font-weight: 700;
+    margin-bottom: 1.5rem;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    letter-spacing: 0.02em;
+}
+.machine {
+    background: rgba(0,0,0,0.25);
+    backdrop-filter: blur(8px);
+    border: 1.5px solid rgba(255,255,255,0.35);
+    border-radius: 20px;
+    padding: 1.5rem 1.75rem;
+    display: flex; flex-direction: column;
+    align-items: center; gap: 0.9rem;
+    min-width: 340px; max-width: 440px; width: 100%;
+}
+
+/* TOKEN BAR */
+.token-bar {
+    width: 100%; background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.3); border-radius: 10px;
+    padding: 10px 16px; display: flex; align-items: center; justify-content: space-between;
+}
+.token-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.75; }
+.token-count { font-size: 1.4rem; font-weight: 700; }
+.token-bet   { font-size: 11px; opacity: 0.65; transition: opacity 0.2s; }
+.token-bet.active { opacity: 1; color: #ffd700; }
+
+/* WHEEL */
+.wheel-wrap {
+    position: relative; width: 200px; height: 200px;
+    flex-shrink: 0;
+}
+#wheelCanvas { display: block; border-radius: 50%; }
+.wheel-pointer {
+    position: absolute; top: -4px; left: 50%;
+    transform: translateX(-50%);
+    width: 0; height: 0;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-top: 16px solid #ffd700;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.6));
+    z-index: 10;
+}
+
+/* WIN MSG */
+.win-msg {
+    font-size: 1rem; font-weight: 500; min-height: 1.5em;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.3);
+}
+.win-msg.show { animation: pop 0.25s ease-out; }
+@keyframes pop { 0% { transform: scale(0.75); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+
+/* CHIP SELECTOR */
+.chip-row {
+    display: flex; align-items: center; gap: 7px; width: 100%; justify-content: center;
+}
+.chip-label { font-size: 11px; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.06em; margin-right: 2px; }
+.chip-btn {
+    width: 42px; height: 42px; border-radius: 50%;
+    border: 3px dashed rgba(255,255,255,0.5);
+    background: rgba(255,255,255,0.12);
+    color: #fff; font-family: 'Ubuntu', Arial, sans-serif;
+    font-weight: 700; font-size: 11px;
+    cursor: pointer; transition: all 0.15s;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0;
+}
+.chip-btn:hover { background: rgba(255,255,255,0.25); border-color: rgba(255,255,255,0.8); }
+.chip-btn.active {
+    background: #ffd700; border-color: #ffd700; border-style: solid;
+    color: #000; box-shadow: 0 0 14px rgba(255,215,0,0.55);
+}
+.chip-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+/* BET TABLE */
+.bet-table { width: 100%; display: flex; flex-direction: column; gap: 2px; }
+.num-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; }
+
+.num-cell {
+    height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; cursor: pointer;
+    border-radius: 4px;
+    border: 1px solid rgba(255,255,255,0.2);
+    position: relative; transition: filter 0.1s, border-color 0.1s, transform 0.08s;
+    user-select: none; -webkit-user-select: none;
+}
+.num-cell:hover  { border-color: rgba(255,255,255,0.7); filter: brightness(1.3); }
+.num-cell:active { transform: scale(0.93); }
+.num-cell.red-num   { background: rgba(168,30,30,0.72); }
+.num-cell.black-num { background: rgba(15,15,15,0.78); }
+.num-cell.green-num { background: rgba(25,130,55,0.82); }
+.num-cell.zero      { grid-column: 1 / -1; font-size: 13px; height: 30px; }
+.num-cell.has-bet   { border-color: #ffd700 !important; box-shadow: 0 0 7px rgba(255,215,0,0.45); }
+.num-cell.is-win    { animation: cellWin 0.55s ease; }
+@keyframes cellWin {
+    0%   { transform: scale(1);    filter: brightness(1); }
+    45%  { transform: scale(1.13); filter: brightness(1.8); }
+    100% { transform: scale(1);    filter: brightness(1); }
+}
+
+/* OUTSIDE BETS */
+.out-row { display: grid; gap: 2px; }
+.dozens-row { grid-template-columns: repeat(3, 1fr); }
+.evens-row  { grid-template-columns: repeat(6, 1fr); }
+
+.out-cell {
+    height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9.5px; font-weight: 700; cursor: pointer;
+    border-radius: 4px; border: 1px solid rgba(255,255,255,0.22);
+    background: rgba(255,255,255,0.1);
+    position: relative; transition: all 0.1s;
+    text-transform: uppercase; letter-spacing: 0.04em;
+    user-select: none; -webkit-user-select: none;
+}
+.out-cell:hover  { background: rgba(255,255,255,0.22); border-color: rgba(255,255,255,0.65); }
+.out-cell:active { transform: scale(0.95); }
+.out-cell.red-cell   { background: rgba(168,30,30,0.55); }
+.out-cell.black-cell { background: rgba(15,15,15,0.65); }
+.out-cell.red-cell:hover   { background: rgba(168,30,30,0.8); }
+.out-cell.black-cell:hover { background: rgba(15,15,15,0.85); }
+.out-cell.has-bet { border-color: #ffd700 !important; box-shadow: 0 0 7px rgba(255,215,0,0.4); background: rgba(255,215,0,0.12) !important; }
+.out-cell.is-win  { animation: cellWin 0.55s ease; }
+
+/* CHIP INDICATOR on cells */
+.chip-pip {
+    position: absolute; top: -7px; right: -7px;
+    background: #ffd700; color: #000;
+    font-size: 8px; font-weight: 700; border-radius: 50%;
+    width: 17px; height: 17px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.45);
+    pointer-events: none;
+}
+
+/* STATS */
+.stats { display: flex; gap: 10px; width: 100%; }
+.stat {
+    background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 10px; padding: 8px 12px; flex: 1; text-align: center;
+}
+.stat-label { font-size: 10px; opacity: 0.8; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 2px; }
+.stat-val   { font-size: 1.2rem; font-weight: 700; }
+
+/* PAYOUT PREVIEW */
+.payout-preview {
+    width: 100%; background: rgba(255,215,0,0.1);
+    border: 1px solid rgba(255,215,0,0.35); border-radius: 10px;
+    padding: 10px 14px; font-size: 12px; line-height: 1.7;
+    text-align: left; opacity: 0.9;
+}
+.preview-title { font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; opacity: 0.75; margin-bottom: 4px; }
+.bonus-line { display: flex; justify-content: space-between; }
+.bonus-val  { font-weight: 700; }
+.total-line {
+    display: flex; justify-content: space-between;
+    border-top: 1px solid rgba(255,215,0,0.3);
+    margin-top: 4px; padding-top: 4px; font-weight: 700; font-size: 13px;
+}
+
+.payout-result {
+    width: 100%; background: rgba(255,215,0,0.15);
+    border: 1px solid rgba(255,215,0,0.5); border-radius: 10px;
+    padding: 10px 14px; font-size: 0.9rem; font-weight: 500;
+    text-align: center; display: none;
+}
+.payout-result.show { display: block; animation: pop 0.3s ease-out; }
+
+/* BUTTONS */
+.btn-row { display: flex; gap: 10px; width: 100%; }
+button {
+    font-family: 'Ubuntu', Arial, sans-serif; font-weight: 700; cursor: pointer;
+    border-radius: 10px; border: 2px solid rgba(255,255,255,0.6);
+    background: rgba(255,255,255,0.2); color: #fff; letter-spacing: 0.04em;
+    transition: background 0.15s, transform 0.1s;
+}
+button:hover:not(:disabled) { background: rgba(255,255,255,0.35); }
+button:active:not(:disabled) { transform: scale(0.97); }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+#spinBtn   { flex: 2; padding: 12px 20px; font-size: 1.1rem; }
+#clearBtn  { flex: 1; padding: 12px 16px; font-size: 0.95rem; }
+#payoutBtn {
+    flex: 1; padding: 12px 16px; font-size: 0.95rem;
+    border-color: rgba(255,215,0,0.7); background: rgba(255,215,0,0.2);
+}
+#payoutBtn:hover:not(:disabled) { background: rgba(255,215,0,0.35); }
+
+.divider { width: 100%; border: none; border-top: 1px solid rgba(255,255,255,0.2); }
+
+/* PAYOUT KEY */
+.payout-key-title { font-size: 11px; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.08em; align-self: flex-start; }
+.payout-key {
+    width: 100%; display: grid;
+    grid-template-columns: repeat(4, 1fr); gap: 6px;
+}
+.pk-item {
+    background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 8px; padding: 6px 4px; text-align: center;
+}
+.pk-label { font-size: 10px; opacity: 0.75; }
+.pk-val   { font-size: 12px; font-weight: 700; }
+
+/* BROKE OVERLAY */
+.broke-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+    z-index: 100; flex-direction: column; align-items: center; justify-content: center;
+}
+.broke-overlay.visible { display: flex; }
+.broke-box {
+    background: rgba(0,0,0,0.65); border: 2px solid rgba(255,255,255,0.4);
+    border-radius: 20px; padding: 2rem 2.5rem; max-width: 340px;
+    text-align: center; display: flex; flex-direction: column; gap: 0.85rem;
+}
+.broke-box h2 { font-size: 1.6rem; font-weight: 700; }
+.broke-box p  { font-size: 0.95rem; opacity: 0.85; line-height: 1.6; }
+.broke-box .hint { font-size: 0.82rem; opacity: 0.55; margin-top: 4px; }
+
+/* SECRET FLASH */
+.secret-flash {
+    position: fixed; top: 0; left: 0; right: 0; padding: 14px;
+    background: rgba(0,0,0,0.8); color: #ffd700;
+    font-size: 1.1rem; font-weight: 700; text-align: center;
+    z-index: 200; letter-spacing: 0.05em;
+    transform: translateY(-100%); transition: transform 0.3s ease;
+}
+.secret-flash.show { transform: translateY(0); }
+
+/* TAP DOTS */
+.tap-dots {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 8px; z-index: 200;
+    opacity: 0; transition: opacity 0.3s; pointer-events: none;
+}
+.tap-dots.visible { opacity: 1; }
+.tap-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.6); background: transparent;
+    transition: background 0.15s;
+}
+.tap-dot.filled { background: #ffd700; border-color: #ffd700; }
+</style>
+</head>
+<body>
+<h1>🎡 Roulette</h1>
+<div class="machine">
+
+  <div class="token-bar">
+    <span class="token-label">🪙 Tokens</span>
+    <span class="token-count" id="tokenCount">500</span>
+    <span class="token-bet" id="tokenBet">No bet placed</span>
+  </div>
+
+  <div class="wheel-wrap">
+    <canvas id="wheelCanvas" width="200" height="200"></canvas>
+    <div class="wheel-pointer"></div>
+  </div>
+
+  <div class="win-msg" id="winMsg"></div>
+
+  <div class="chip-row">
+    <span class="chip-label">Chip:</span>
+    <button class="chip-btn active" data-val="10">10</button>
+    <button class="chip-btn" data-val="25">25</button>
+    <button class="chip-btn" data-val="50">50</button>
+    <button class="chip-btn" data-val="100">100</button>
+  </div>
+
+  <div class="bet-table" id="betTable"></div>
+
+  <div class="btn-row">
+    <button id="spinBtn">🎡 Spin</button>
+    <button id="clearBtn">✕ Clear</button>
+    <button id="payoutBtn">💰 Payout</button>
+  </div>
+
+  <div class="payout-result" id="payoutResult"></div>
+
+  <div class="stats">
+    <div class="stat"><div class="stat-label">Spins</div><div class="stat-val" id="spinsEl">0</div></div>
+    <div class="stat"><div class="stat-label">Wins</div><div class="stat-val" id="winsEl">0</div></div>
+    <div class="stat"><div class="stat-label">Net</div><div class="stat-val" id="netEl">+0</div></div>
+  </div>
+
+  <div class="payout-preview">
+    <div class="preview-title">Streak Payout Preview</div>
+    <div class="bonus-line"><span id="prevSpinLabel">Spin bonus (0× 5%)</span><span class="bonus-val" id="prevSpinVal">+0</span></div>
+    <div class="bonus-line"><span id="prevWinLabel">Win bonus (0× 10%)</span><span class="bonus-val" id="prevWinVal">+0</span></div>
+    <div class="total-line"><span>Total payout</span><span id="prevTotal">+0 tokens</span></div>
+  </div>
+
+  <hr class="divider">
+  <div class="payout-key-title">Payout rates</div>
+  <div class="payout-key">
+    <div class="pk-item"><div class="pk-label">Straight</div><div class="pk-val">35 : 1</div></div>
+    <div class="pk-item"><div class="pk-label">Dozen / Col</div><div class="pk-val">2 : 1</div></div>
+    <div class="pk-item"><div class="pk-label">Red / Black</div><div class="pk-val">1 : 1</div></div>
+    <div class="pk-item"><div class="pk-label">Even / Odd</div><div class="pk-val">1 : 1</div></div>
+  </div>
+
+</div>
+
+<!-- BROKE OVERLAY -->
+<div class="broke-overlay" id="brokeOverlay">
+  <div class="broke-box">
+    <h2>Broke! 💸</h2>
+    <p>The house always wins... but there might be a secret stash somewhere.</p>
+    <p class="hint">Psst: type <strong>777</strong> on your keyboard,<br>or tap 7 different spots on the screen.</p>
+  </div>
+</div>
+
+<!-- SECRET FLASH -->
+<div class="secret-flash" id="secretFlash">🎡 SECRET STASH UNLOCKED — +500 TOKENS 🎡</div>
+
+<!-- TAP PROGRESS DOTS -->
+<div class="tap-dots" id="tapDots">
+  <div class="tap-dot" id="td0"></div><div class="tap-dot" id="td1"></div>
+  <div class="tap-dot" id="td2"></div><div class="tap-dot" id="td3"></div>
+  <div class="tap-dot" id="td4"></div><div class="tap-dot" id="td5"></div>
+  <div class="tap-dot" id="td6"></div>
+</div>
+
+<script>
+// ── WHEEL DATA ──────────────────────────────────────────────────────────
+const WHEEL_ORDER = [0,32,15,19,4,21,2,25,17,34,6,27,13,36,11,30,8,23,10,5,24,16,33,1,20,14,31,9,22,18,29,7,28,12,35,3,26];
+const RED_NUMS = new Set([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]);
+const N = WHEEL_ORDER.length; // 37
+const SLICE = (2 * Math.PI) / N;
+
+// ── CANVAS SETUP ────────────────────────────────────────────────────────
+const canvas = document.getElementById('wheelCanvas');
+const ctx    = canvas.getContext('2d');
+const CX = canvas.width  / 2;
+const CY = canvas.height / 2;
+const OUTER_R  = CX - 2;
+const RIM_R    = OUTER_R - 5;
+const INNER_R  = OUTER_R * 0.60;
+const NUM_R    = (RIM_R + INNER_R) / 2;
+const TRACK_R  = RIM_R + 2;   // ball outer track
+const LAND_R   = INNER_R + (RIM_R - INNER_R) * 0.28; // ball final resting place
+
+// ── STATE ───────────────────────────────────────────────────────────────
+let tokens = 500, spins = 0, wins = 0, net = 0;
+let spinning = false;
+let bets = {};
+let selectedChip = 10;
+let wheelAngle = 0;
+let ballAngle  = -Math.PI / 2;
+let ballRadius = TRACK_R;
+let winIdx     = -1; // index into WHEEL_ORDER for highlight
+
+// ── DRAW WHEEL ──────────────────────────────────────────────────────────
+function drawWheel(wAngle, bAngle, bRadius, highlightIdx) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Outer wood rim gradient
+    const rimGrad = ctx.createRadialGradient(CX - 10, CY - 10, INNER_R, CX, CY, OUTER_R);
+    rimGrad.addColorStop(0, '#7a4e2d');
+    rimGrad.addColorStop(1, '#3a1e08');
+    ctx.beginPath();
+    ctx.arc(CX, CY, OUTER_R, 0, 2 * Math.PI);
+    ctx.fillStyle = rimGrad;
+    ctx.fill();
+
+    // Gold rim ring
+    ctx.beginPath();
+    ctx.arc(CX, CY, OUTER_R - 1, 0, 2 * Math.PI);
+    ctx.strokeStyle = 'rgba(255,215,0,0.55)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Dividers on outer rim
+    for (let i = 0; i < N; i++) {
+        const a = wAngle + i * SLICE - Math.PI / 2;
+        ctx.beginPath();
+        ctx.moveTo(CX + INNER_R * Math.cos(a), CY + INNER_R * Math.sin(a));
+        ctx.lineTo(CX + (OUTER_R - 2) * Math.cos(a), CY + (OUTER_R - 2) * Math.sin(a));
+        ctx.strokeStyle = 'rgba(255,215,0,0.4)';
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
+    }
+
+    // Pocket segments
+    for (let i = 0; i < N; i++) {
+        const sa  = wAngle + i * SLICE - Math.PI / 2;
+        const ea  = sa + SLICE;
+        const num = WHEEL_ORDER[i];
+        const isHighlight = (highlightIdx === i);
+
+        ctx.beginPath();
+        ctx.moveTo(CX, CY);
+        ctx.arc(CX, CY, RIM_R, sa, ea);
+        ctx.closePath();
+
+        let fill;
+        if (num === 0) {
+            fill = isHighlight ? '#66ff99' : '#167a38';
+        } else if (RED_NUMS.has(num)) {
+            fill = isHighlight ? '#ff7070' : '#9b1c1c';
+        } else {
+            fill = isHighlight ? '#c0c0c0' : '#111';
+        }
+        ctx.fillStyle = fill;
+        ctx.fill();
+
+        // Subtle segment border
+        ctx.beginPath();
+        ctx.arc(CX, CY, RIM_R, sa, ea);
+        ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+        ctx.lineWidth = 0.4;
+        ctx.stroke();
+
+        // Number label
+        const midA = sa + SLICE / 2;
+        const tx = CX + NUM_R * Math.cos(midA);
+        const ty = CY + NUM_R * Math.sin(midA);
+        ctx.save();
+        ctx.translate(tx, ty);
+        ctx.rotate(midA + Math.PI / 2);
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 7px Ubuntu, Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(num), 0, 0);
+        ctx.restore();
+    }
+
+    // Inner cone / hub
+    const hubGrad = ctx.createRadialGradient(CX - 6, CY - 6, 2, CX, CY, INNER_R);
+    hubGrad.addColorStop(0, '#7a4e2d');
+    hubGrad.addColorStop(1, '#2a1008');
+    ctx.beginPath();
+    ctx.arc(CX, CY, INNER_R, 0, 2 * Math.PI);
+    ctx.fillStyle = hubGrad;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,215,0,0.5)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Hub spokes
+    for (let i = 0; i < 8; i++) {
+        const sa = wAngle + i * (Math.PI / 4);
+        ctx.beginPath();
+        ctx.moveTo(CX + INNER_R * 0.18 * Math.cos(sa), CY + INNER_R * 0.18 * Math.sin(sa));
+        ctx.lineTo(CX + INNER_R * 0.82 * Math.cos(sa), CY + INNER_R * 0.82 * Math.sin(sa));
+        ctx.strokeStyle = 'rgba(255,215,0,0.25)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+    }
+
+    // Hub centre
+    ctx.beginPath();
+    ctx.arc(CX, CY, INNER_R * 0.22, 0, 2 * Math.PI);
+    ctx.fillStyle = '#ffd700';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(CX, CY, INNER_R * 0.10, 0, 2 * Math.PI);
+    ctx.fillStyle = '#5c3a1e';
+    ctx.fill();
+
+    // Ball shadow
+    const bx = CX + bRadius * Math.cos(bAngle);
+    const by = CY + bRadius * Math.sin(bAngle);
+    ctx.beginPath();
+    ctx.arc(bx + 1.5, by + 1.5, 5, 0, 2 * Math.PI);
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fill();
+
+    // Ball
+    const bg = ctx.createRadialGradient(bx - 1.5, by - 1.5, 1, bx, by, 5);
+    bg.addColorStop(0, '#ffffff');
+    bg.addColorStop(1, '#aaaaaa');
+    ctx.beginPath();
+    ctx.arc(bx, by, 5, 0, 2 * Math.PI);
+    ctx.fillStyle = bg;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+}
+
+// Initial render
+drawWheel(wheelAngle, ballAngle, ballRadius, -1);
+
+// ── BUILD BET TABLE ──────────────────────────────────────────────────────
+function buildBetTable() {
+    const tbl = document.getElementById('betTable');
+    tbl.innerHTML = '';
+
+    // Zero
+    const zRow = document.createElement('div');
+    zRow.className = 'num-row';
+    const zCell = makeBetCell('0', 'num-cell green-num zero', '0');
+    zRow.appendChild(zCell);
+    tbl.appendChild(zRow);
+
+    // Numbers 1–36 (rows of 3)
+    for (let row = 0; row < 12; row++) {
+        const nr = document.createElement('div');
+        nr.className = 'num-row';
+        for (let col = 0; col < 3; col++) {
+            const n = row * 3 + col + 1;
+            const cls = 'num-cell ' + (RED_NUMS.has(n) ? 'red-num' : 'black-num');
+            nr.appendChild(makeBetCell(String(n), cls, String(n)));
+        }
+        tbl.appendChild(nr);
+    }
+
+    // Dozens
+    const dRow = document.createElement('div');
+    dRow.className = 'out-row dozens-row';
+    [['1st12','1st 12'],['2nd12','2nd 12'],['3rd12','3rd 12']].forEach(([k,l]) => {
+        dRow.appendChild(makeBetCell(k, 'out-cell', l));
+    });
+    tbl.appendChild(dRow);
+
+    // Even-money
+    const eRow = document.createElement('div');
+    eRow.className = 'out-row evens-row';
+    [['low','1–18'],['even','Even'],['red','Red'],['black','Black'],['odd','Odd'],['high','19–36']].forEach(([k,l]) => {
+        const ex = (k === 'red' ? ' red-cell' : '') + (k === 'black' ? ' black-cell' : '');
+        eRow.appendChild(makeBetCell(k, 'out-cell' + ex, l));
+    });
+    tbl.appendChild(eRow);
+
+    // Delegation
+    tbl.addEventListener('click', e => {
+        const cell = e.target.closest('[data-bet]');
+        if (cell && !spinning) placeBet(cell.dataset.bet);
+    });
+    tbl.addEventListener('contextmenu', e => {
+        e.preventDefault();
+        const cell = e.target.closest('[data-bet]');
+        if (cell && !spinning) removeBet(cell.dataset.bet);
+    });
+}
+
+function makeBetCell(betKey, cls, label) {
+    const el = document.createElement('div');
+    el.className = cls;
+    el.dataset.bet = betKey;
+    el.textContent = label;
+    return el;
+}
+
+// ── BET LOGIC ────────────────────────────────────────────────────────────
+function totalBet() {
+    return Object.values(bets).reduce((s, v) => s + v, 0);
+}
+
+function placeBet(key) {
+    const avail = tokens - totalBet();
+    if (avail < selectedChip) return;
+    bets[key] = (bets[key] || 0) + selectedChip;
+    refreshBetTable();
+    updateUI();
+}
+
+function removeBet(key) {
+    if (!bets[key]) return;
+    bets[key] -= selectedChip;
+    if (bets[key] <= 0) delete bets[key];
+    refreshBetTable();
+    updateUI();
+}
+
+function refreshBetTable() {
+    document.querySelectorAll('[data-bet]').forEach(cell => {
+        const key = cell.dataset.bet;
+        const amt = bets[key];
+        const old = cell.querySelector('.chip-pip');
+        if (old) old.remove();
+        if (amt) {
+            cell.classList.add('has-bet');
+            const pip = document.createElement('span');
+            pip.className = 'chip-pip';
+            pip.textContent = amt >= 1000 ? Math.floor(amt / 100) / 10 + 'k' : String(amt);
+            cell.appendChild(pip);
+        } else {
+            cell.classList.remove('has-bet');
+        }
+    });
+}
+
+// ── PAYOUT CALC ──────────────────────────────────────────────────────────
+function calcPayout() {
+    const spinTiers = Math.floor(spins / 10);
+    const winTiers  = Math.floor(wins  / 5);
+    const spinBonus = Math.floor(tokens * spinTiers * 0.05);
+    const winBonus  = Math.floor(tokens * winTiers  * 0.10);
+    return { spinTiers, winTiers, spinBonus, winBonus, total: spinBonus + winBonus };
+}
+
+function updatePayoutPreview() {
+    const { spinTiers, winTiers, spinBonus, winBonus, total } = calcPayout();
+    document.getElementById('prevSpinLabel').textContent = 'Spin bonus (' + spinTiers + '× 5%)';
+    document.getElementById('prevSpinVal').textContent   = '+' + spinBonus;
+    document.getElementById('prevWinLabel').textContent  = 'Win bonus (' + winTiers + '× 10%)';
+    document.getElementById('prevWinVal').textContent    = '+' + winBonus;
+    document.getElementById('prevTotal').textContent     = '+' + total + ' tokens';
+    document.getElementById('payoutBtn').disabled = (total === 0);
+}
+
+// ── RESULT RESOLUTION ────────────────────────────────────────────────────
+function betWins(key, result) {
+    if (key === String(result)) return 35;
+    if (key === 'red'   && RED_NUMS.has(result) && result > 0) return 1;
+    if (key === 'black' && result > 0 && !RED_NUMS.has(result)) return 1;
+    if (key === 'even'  && result > 0 && result % 2 === 0) return 1;
+    if (key === 'odd'   && result > 0 && result % 2 === 1) return 1;
+    if (key === 'low'   && result >= 1  && result <= 18) return 1;
+    if (key === 'high'  && result >= 19 && result <= 36) return 1;
+    if (key === '1st12' && result >= 1  && result <= 12) return 2;
+    if (key === '2nd12' && result >= 13 && result <= 24) return 2;
+    if (key === '3rd12' && result >= 25 && result <= 36) return 2;
+    return -1;
+}
+
+function resolveResult(result) {
+    // Highlight winning cells
+    const winningKeys = [String(result)];
+    if (result > 0) {
+        if (RED_NUMS.has(result)) winningKeys.push('red');
+        else winningKeys.push('black');
+        if (result % 2 === 0) winningKeys.push('even'); else winningKeys.push('odd');
+        if (result <= 18)  winningKeys.push('low');  else winningKeys.push('high');
+        if (result <= 12)  winningKeys.push('1st12');
+        else if (result <= 24) winningKeys.push('2nd12');
+        else winningKeys.push('3rd12');
+    }
+    winningKeys.forEach(k => {
+        const el = document.querySelector('[data-bet="' + k + '"]');
+        if (el) { el.classList.add('is-win'); setTimeout(() => el.classList.remove('is-win'), 700); }
+    });
+
+    // Tally
+    let returned = 0;
+    const betTotal = totalBet();
+    Object.entries(bets).forEach(([key, amt]) => {
+        const mult = betWins(key, result);
+        if (mult >= 0) returned += amt * (mult + 1);
+    });
+    const profit = returned - betTotal;
+
+    tokens += returned;
+    net    += profit;
+    spins++;
+    if (profit > 0) wins++;
+
+    const colour = result === 0 ? 'Green 🟢' : (RED_NUMS.has(result) ? 'Red 🔴' : 'Black ⚫');
+    if (profit > 0) {
+        showWin('🎉 ' + result + ' ' + colour + ' — +' + profit + ' tokens!');
+    } else if (profit === 0) {
+        showWin('😐 ' + result + ' ' + colour + ' — Bet returned');
+    } else {
+        showWin('💸 ' + result + ' ' + colour + ' — Lost ' + Math.abs(profit) + ' tokens');
+    }
+
+    bets = {};
+    refreshBetTable();
+    updateUI();
+}
+
+// ── SPIN ─────────────────────────────────────────────────────────────────
+document.getElementById('spinBtn').addEventListener('click', () => {
+    if (spinning || totalBet() === 0) return;
+    spinning = true;
+    document.getElementById('spinBtn').disabled  = true;
+    document.getElementById('clearBtn').disabled = true;
+    document.getElementById('payoutBtn').disabled = true;
+    document.getElementById('winMsg').textContent = '';
+    document.getElementById('payoutResult').classList.remove('show');
+
+    tokens -= totalBet();
+    document.getElementById('tokenCount').textContent = tokens;
+
+    // Pick result
+    const result    = Math.floor(Math.random() * 37);
+    const resultIdx = WHEEL_ORDER.indexOf(result);
+
+    // Target wheel angle: slot resultIdx centred at top (-PI/2)
+    const baseTarget   = -(resultIdx * SLICE + SLICE / 2);
+    const currentNorm  = ((wheelAngle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+    const targetNorm   = ((baseTarget  % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+    let delta = targetNorm - currentNorm;
+    if (delta <= 0) delta += 2 * Math.PI;
+    const extraSpins   = 6 + Math.floor(Math.random() * 3);
+    const endWheelAngle = wheelAngle + delta + extraSpins * 2 * Math.PI;
+
+    // Ball: spins counter-clockwise, ends at top (-PI/2)
+    const ballRevs     = -(9 + Math.floor(Math.random() * 4));
+    const startBallA   = ballAngle;
+    const endBallA     = startBallA + ballRevs * 2 * Math.PI;
+
+    const duration     = 4400;
+    const startTime    = performance.now();
+    const startWheelA  = wheelAngle;
+    const startBallR   = TRACK_R;
+
+    function frame(now) {
+        const elapsed = now - startTime;
+        const t       = Math.min(elapsed / duration, 1);
+        // Ease out cubic for wheel
+        const eW = 1 - Math.pow(1 - t, 3);
+        // Slightly faster initial deceleration for ball
+        const eB = 1 - Math.pow(1 - t, 2.4);
+
+        const curW = startWheelA + (endWheelAngle - startWheelA) * eW;
+        const curB = startBallA  + (endBallA - startBallA) * eB;
+        // Ball falls inward in last 30%
+        const dropT   = Math.max(0, (t - 0.70) / 0.30);
+        const dropEase = dropT * dropT;
+        const curBR   = startBallR + (LAND_R - startBallR) * dropEase;
+
+        wheelAngle  = curW;
+        ballAngle   = curB;
+        ballRadius  = curBR;
+
+        const highlight = t > 0.88 ? resultIdx : -1;
+        drawWheel(curW, curB, curBR, highlight);
+
+        if (t < 1) {
+            requestAnimationFrame(frame);
+        } else {
+            spinning = false;
+            document.getElementById('spinBtn').disabled  = false;
+            document.getElementById('clearBtn').disabled = false;
+            resolveResult(result);
+        }
+    }
+    requestAnimationFrame(frame);
+});
+
+// ── CLEAR BETS ────────────────────────────────────────────────────────────
+document.getElementById('clearBtn').addEventListener('click', () => {
+    if (spinning) return;
+    bets = {};
+    refreshBetTable();
+    updateUI();
+});
+
+// ── PAYOUT BUTTON ─────────────────────────────────────────────────────────
+document.getElementById('payoutBtn').addEventListener('click', () => {
+    const { spinTiers, winTiers, spinBonus, winBonus, total } = calcPayout();
+    if (total === 0) return;
+    tokens += total;
+    let msg = '💰 Payout! ';
+    if (spinTiers > 0) msg += spinTiers + '× spin +' + spinBonus;
+    if (spinTiers > 0 && winTiers > 0) msg += ' · ';
+    if (winTiers  > 0) msg += winTiers  + '× win +'  + winBonus;
+    msg += ' = +' + total + ' tokens!';
+    const el = document.getElementById('payoutResult');
+    el.textContent = msg;
+    el.classList.remove('show');
+    void el.offsetWidth;
+    el.classList.add('show');
+    spins = 0; wins = 0; net = 0;
+    updateUI();
+});
+
+// ── CHIP SELECTION ────────────────────────────────────────────────────────
+document.querySelectorAll('.chip-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.chip-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        selectedChip = parseInt(btn.dataset.val);
+    });
+});
+
+// ── WIN MSG ───────────────────────────────────────────────────────────────
+function showWin(msg) {
+    const el = document.getElementById('winMsg');
+    el.textContent = msg;
+    el.classList.remove('show');
+    void el.offsetWidth;
+    el.classList.add('show');
+}
+
+// ── UI UPDATE ─────────────────────────────────────────────────────────────
+function updateUI() {
+    document.getElementById('tokenCount').textContent = tokens;
+    document.getElementById('spinsEl').textContent    = spins;
+    document.getElementById('winsEl').textContent     = wins;
+
+    const netEl = document.getElementById('netEl');
+    netEl.textContent  = (net >= 0 ? '+' : '') + net;
+    netEl.style.color  = net >= 0 ? '#7fff7f' : '#ff7f7f';
+
+    const tb = totalBet();
+    const betEl = document.getElementById('tokenBet');
+    betEl.textContent = tb > 0 ? 'Bet: ' + tb : 'No bet placed';
+    betEl.classList.toggle('active', tb > 0);
+
+    const canSpin = !spinning && tb > 0 && tb <= tokens;
+    document.getElementById('spinBtn').disabled = !canSpin;
+
+    // Disable chips the player can't afford for the current remaining balance
+    const avail = tokens - tb;
+    document.querySelectorAll('.chip-btn').forEach(btn => {
+        btn.disabled = parseInt(btn.dataset.val) > (avail + tb); // can always afford <= tokens
+    });
+
+    updatePayoutPreview();
+
+    if (tokens < 10 && tb === 0) {
+        document.getElementById('brokeOverlay').classList.add('visible');
+    } else {
+        document.getElementById('brokeOverlay').classList.remove('visible');
+    }
+}
+
+// ── SECRET STASH ──────────────────────────────────────────────────────────
+let secretTimer = null;
+function triggerSecret() {
+    tokens += 500;
+    updateUI();
+    clearTimeout(secretTimer);
+    const flash = document.getElementById('secretFlash');
+    flash.classList.add('show');
+    secretTimer = setTimeout(() => flash.classList.remove('show'), 2800);
+    document.getElementById('brokeOverlay').classList.remove('visible');
+}
+
+let keyBuf = '';
+document.addEventListener('keydown', e => {
+    keyBuf += e.key;
+    if (keyBuf.length > 3) keyBuf = keyBuf.slice(-3);
+    if (keyBuf === '777') { keyBuf = ''; triggerSecret(); }
+});
+
+let tapPositions = [], tapTimer2 = null;
+const tapDotsEl  = document.getElementById('tapDots');
+const tapDotEls  = Array.from({length: 7}, (_, i) => document.getElementById('td' + i));
+
+function updateTapDots() {
+    tapDotsEl.classList.add('visible');
+    tapDotEls.forEach((d, i) => d.classList.toggle('filled', i < tapPositions.length));
+    clearTimeout(tapTimer2);
+    tapTimer2 = setTimeout(() => {
+        tapPositions = [];
+        tapDotsEl.classList.remove('visible');
+        tapDotEls.forEach(d => d.classList.remove('filled'));
+    }, 3000);
+}
+
+function handleTap(x, y) {
+    const tooClose = tapPositions.some(p => Math.hypot(p.x - x, p.y - y) < 60);
+    if (tooClose) return;
+    tapPositions.push({x, y});
+    updateTapDots();
+    if (tapPositions.length >= 7) {
+        tapPositions = [];
+        clearTimeout(tapTimer2);
+        tapDotsEl.classList.remove('visible');
+        tapDotEls.forEach(d => d.classList.remove('filled'));
+        triggerSecret();
+    }
+}
+
+document.addEventListener('click', e => handleTap(e.clientX, e.clientY));
+document.addEventListener('touchstart', e => {
+    Array.from(e.changedTouches).forEach(t => handleTap(t.clientX, t.clientY));
+}, { passive: true });
+
+// ── INIT ──────────────────────────────────────────────────────────────────
+buildBetTable();
+updateUI();
+</script>
+</body>
+</html>

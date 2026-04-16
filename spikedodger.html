@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/x-icon" href="https://usrx215.github.io/scgames/spikedodger.png">
+    <title>Spike Dodger</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body { margin: 0; padding: 0; overflow: hidden; font-family: 'Ubuntu', sans-serif; }
+        canvas { display: block; background-color: #000000; }
+        #gameOverContainer, #titleScreen {
+            display: none;
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: white;
+        }
+        #gameOverContainer h1, #titleScreen h1 { font-size: 48px; margin: 0; }
+        #gameOverContainer p { font-size: 24px; margin: 10px 0; }
+        #restartButton, #startButton {
+            padding: 10px 20px;
+            font-size: 20px;
+            background-color: red;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        #restartButton:hover { background-color: darkred; }
+        #startButton { background-color: lime; color: black; }
+        #startButton:hover { background-color: green; color: white; }
+    </style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+<div id="titleScreen">
+    <h1>Spike Dodger</h1>
+    <button id="startButton">Start Game</button>
+</div>
+<div id="gameOverContainer">
+    <h1>Game Over!</h1>
+    <p id="finalScore"></p>
+    <button id="restartButton">Restart</button>
+</div>
+<div id="pauseScreen" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); color:white; text-align:center;">
+    <h1>Paused</h1>
+    <p>Press P or Escape to Resume</p>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+const playerSize = 50;
+let playerX = canvas.width / 2 - playerSize / 2;
+let playerY = canvas.height - playerSize - 10;
+let currentDisplayHeight = playerSize;
+
+const playerSpeed = 5;
+const jumpHeight = playerSize * 1.5;
+const gravity = 0.5;
+const dashSpeed = 20;
+const dashCooldownDuration = 1000;
+let trail = [];
+
+let isJumping = false, jumpVelocity = 0, jumpCount = 0;
+let dashTimer = 0, dashDirection = 0;
+let dashReady = true, dashCooldownTimer = 0;
+let discoMode = false, discoHue = 0;
+let dashJumpAvailable = false;
+
+let crouchSpamTimes = [], lastCrouchTime = 0;
+let obstacles = [];
+let obstacleSpeed = 3;
+let spawnRate = 0.02;
+
+let score = 0;
+let scoreInterval;
+let gameOver = false;
+let isPaused = false;
+let currentPlatform = null;
+
+const keys = {}, keyDownState = {};
+const titleScreen = document.getElementById('titleScreen');
+const gameOverContainer = document.getElementById('gameOverContainer');
+const finalScoreText = document.getElementById('finalScore');
+const restartButton = document.getElementById('restartButton');
+const startButton = document.getElementById('startButton');
+const pauseScreen = document.getElementById('pauseScreen');
+
+restartButton.addEventListener('click', restartGame);
+startButton.addEventListener('click', restartGame);
+
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+const lastKeyPressTime = {};
+window.addEventListener('keydown', (e) => {
+    const key = e.key;
+    const now = Date.now();
+    if (!keys[key]) {
+        if ((key === 'ArrowLeft' || key === 'a' || key === 'ArrowRight' || key === 'd') && dashReady) {
+            if (lastKeyPressTime[key] && now - lastKeyPressTime[key] < 300 && now - lastKeyPressTime[key] > 50) {
+                dashTimer = 10;
+                dashDirection = (key === 'ArrowLeft' || key === 'a') ? -1 : 1;
+                dashReady = false;
+                dashCooldownTimer = dashCooldownDuration;
+                setTimeout(() => dashReady = true, dashCooldownDuration);
+                if (playerY < canvas.height - playerSize - 10) dashJumpAvailable = true;
+            }
+            lastKeyPressTime[key] = now;
+        }
+        if ((key === 'ArrowDown' || key === 's')) {
+            if (now - lastCrouchTime < 400 && now - lastCrouchTime > 50) {
+                crouchSpamTimes.push(now);
+                if (crouchSpamTimes.length > 5) crouchSpamTimes.shift();
+                if (crouchSpamTimes.length >= 5 && crouchSpamTimes[crouchSpamTimes.length - 1] - crouchSpamTimes[0] < 2000) {
+                    discoMode = true;
+                }
+            } else {
+                crouchSpamTimes = [now];
+            }
+            lastCrouchTime = now;
+        }
+    }
+    keys[key] = true;
+    keyDownState[key] = now;
+});
+window.addEventListener('keyup', (e) => {
+    keys[e.key] = false;
+    keyDownState[e.key] = false;
+});
+
+function togglePause() {
+  if (isPaused) {
+    isPaused = false;
+    pauseScreen.style.display = 'none';
+    requestAnimationFrame(gameLoop);
+  } else {
+    isPaused = true;
+    pauseScreen.style.display = 'block';
+  }
+}
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'p' || e.key === 'Escape') togglePause();
+});
+
+// Collision helpers unchanged
+function pointInTriangle(px, py, ax, ay, bx, by, cx, cy) {
+    const area = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
+    const area1 = (ax - px) * (by - py) - (ay - py) * (bx - px);
+    const area2 = (bx - px) * (cy - py) - (by - py) * (cx - px);
+    const area3 = (cx - px) * (ay - py) - (cy - py) * (ax - px);
+    const hasNeg = (area1 < 0) || (area2 < 0) || (area3 < 0);
+    const hasPos = (area1 > 0) || (area2 > 0) || (area3 > 0);
+    return !(hasNeg && hasPos);
+}
+function rectTriangleCollision(rect, tri) {
+    const rectCorners = [
+        {x: rect.x, y: rect.y},
+        {x: rect.x + rect.width, y: rect.y},
+        {x: rect.x, y: rect.y + rect.height},
+        {x: rect.x + rect.width, y: rect.y + rect.height}
+    ];
+    for (let c of rectCorners) {
+        if (pointInTriangle(c.x, c.y, tri[0].x, tri[0].y, tri[1].x, tri[1].y, tri[2].x, tri[2].y)) {
+            return true;
+        }
+    }
+    for (let p of tri) {
+        if (p.x >= rect.x && p.x <= rect.x + rect.width &&
+            p.y >= rect.y && p.y <= rect.y + rect.height) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Drawing functions unchanged
+function drawPlayer() {
+    ctx.fillStyle = '#00ff00';
+    const targetHeight = (keys['ArrowDown'] || keys['s']) ? playerSize / 2 : playerSize;
+    currentDisplayHeight += (targetHeight - currentDisplayHeight) * 0.5;
+    ctx.fillRect(playerX, playerY + (playerSize - currentDisplayHeight), playerSize, currentDisplayHeight);
+}
+function drawObstacles() {
+    obstacles.forEach((obstacle) => {
+        ctx.fillStyle = obstacle.type === 'purple' ? 'purple' : 'red';
+        ctx.beginPath();
+        ctx.moveTo(obstacle.x, obstacle.y);
+        ctx.lineTo(obstacle.x + 25, obstacle.y + 50);
+        ctx.lineTo(obstacle.x + 50, obstacle.y);
+        ctx.closePath();
+        ctx.fill();
+    });
+}
+function drawScore() {
+    ctx.fillStyle = 'white';
+    ctx.font = '24px Ubuntu';
+    ctx.fillText('Score: ' + score, 20, 30);
+}
+function drawDashCooldownBar() {
+    if (dashCooldownTimer > 0) {
+        const barWidth = playerSize, barHeight = 5;
+        const x = playerX, y = playerY - 15;
+        const fillRatio = 1 - (dashCooldownTimer / dashCooldownDuration);
+        ctx.fillStyle = 'gray';
+        ctx.fillRect(x, y, barWidth, barHeight);
+        ctx.fillStyle = 'cyan';
+        ctx.fillRect(x, y, barWidth * fillRatio, barHeight);
+    }
+}
+
+// Obstacles unchanged
+function generateObstacle() {
+    const x = Math.random() * (canvas.width - 50);
+    const type = Math.random() < 0.15 ? 'purple' : 'red';
+    obstacles.push({ x, y: -50, type, vy: obstacleSpeed });
+}
+function moveObstacles() {
+    for (let i = obstacles.length - 1; i >= 0; i--) {
+        const obstacle = obstacles[i];
+        if (obstacle.type === 'purple') {
+            const playerCenterX = playerX + playerSize / 2;
+            const targetX = playerCenterX - 25;
+            obstacle.x += (targetX - obstacle.x) * 0.05;
+        }
+        obstacle.y += obstacle.vy;
+
+        // Triangle points
+        const tri = [
+            { x: obstacle.x, y: obstacle.y },
+            { x: obstacle.x + 25, y: obstacle.y + 50 },
+            { x: obstacle.x + 50, y: obstacle.y }
+        ];
+
+        const displayHeight = (keys['ArrowDown'] || keys['s']) ? playerSize / 2 : playerSize;
+        const playerHitbox = { x: playerX, y: playerY + (playerSize - displayHeight), width: playerSize, height: displayHeight };
+
+        // Define the safe strip (top 1/3 of spike)
+        const safeHeight = displayHeight / 3;
+        const safeStrip = {
+            x: obstacle.x,
+            y: obstacle.y,
+            width: 50,
+            height: safeHeight
+        };
+
+        // Check horizontal and vertical overlap with safe strip
+        const touchingSafeStrip =
+            playerHitbox.x + playerHitbox.width > safeStrip.x &&
+            playerHitbox.x < safeStrip.x + safeStrip.width &&
+            playerHitbox.y + playerHitbox.height > safeStrip.y &&
+            playerHitbox.y < safeStrip.y + safeStrip.height;
+
+        if (touchingSafeStrip) {
+            // Snap to the top of safe strip
+            playerY = safeStrip.y - displayHeight;
+            isJumping = false;
+            jumpVelocity = 0;
+            jumpCount = 0;
+            currentPlatform = obstacle; // lock Y while on safe strip
+        } else if (rectTriangleCollision(playerHitbox, tri)) {
+            // Only game over if not touching safe strip
+            if (currentPlatform !== obstacle) gameOver = true;
+        } else {
+            // If obstacle moves away, unlock Y
+            if (currentPlatform === obstacle) currentPlatform = null;
+        }
+
+        // Remove offscreen
+        if (obstacle.y > canvas.height + 60) {
+            if (currentPlatform === obstacle) currentPlatform = null;
+            obstacles.splice(i, 1);
+        }
+    }
+}
+
+function updatePlayerPosition() {
+    if (dashTimer > 0) {
+        playerX += dashDirection * dashSpeed;
+        dashTimer--;
+        trail.push({ x: playerX, y: playerY, alpha: 1.0 });
+    } else {
+        if (keys['ArrowLeft'] || keys['a']) playerX -= playerSpeed;
+        if (keys['ArrowRight'] || keys['d']) playerX += playerSpeed;
+    }
+
+    if (isJumping && (keys['ArrowDown'] || keys['s'])) jumpCount = 0;
+    if ((keys['ArrowUp'] || keys['w']) && (jumpCount < 2 || dashJumpAvailable) && !keys['_jumpHeld']) {
+        jumpVelocity = -jumpHeight / 10;
+        isJumping = true;
+        jumpCount++;
+        if (dashJumpAvailable) dashJumpAvailable = false;
+        keys['_jumpHeld'] = true;
+    }
+    if (!(keys['ArrowUp'] || keys['w'])) keys['_jumpHeld'] = false;
+
+    const displayHeight = (keys['ArrowDown'] || keys['s']) ? playerSize / 2 : playerSize;
+
+    if (currentPlatform) {
+        playerY = currentPlatform.y - displayHeight;
+    } else {
+        playerY += jumpVelocity;
+        let gravityModifier = 1;
+        if (keys['ArrowUp'] || keys['w']) gravityModifier = keys['ArrowDown'] || keys['s'] ? 1 : 0.4;
+        else if (keys['ArrowDown'] || keys['s']) gravityModifier = 0.6;
+        jumpVelocity += gravity * gravityModifier;
+
+        if (playerY >= canvas.height - playerSize - 10) {
+            playerY = canvas.height - playerSize - 10;
+            isJumping = false;
+            jumpCount = 0;
+            dashJumpAvailable = false;
+            currentPlatform = null;
+        }
+
+        // Top boundary: clamp player to top of screen and kill upward velocity
+        if (playerY < 0) {
+            playerY = 0;
+            if (jumpVelocity < 0) jumpVelocity = 0;
+        }
+    }
+
+    if (playerX < 0) playerX = 0;
+    if (playerX > canvas.width - playerSize) playerX = canvas.width - playerSize;
+    if (playerY > canvas.height - playerSize - 10) playerY = canvas.height - playerSize - 10;
+}
+
+
+
+// Disco, trail, dash preview unchanged
+function handleDiscoMode() {
+    if (discoMode) {
+        discoHue = (discoHue + 1) % 360;
+        ctx.fillStyle = `hsla(${discoHue}, 100%, 50%, 0.2)`;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        const now = Date.now();
+        if (crouchSpamTimes.length < 5 || now - crouchSpamTimes[crouchSpamTimes.length - 1] > 500) {
+            discoMode = false;
+            crouchSpamTimes = [];
+        }
+    }
+}
+function drawTrail() {
+    for (let t of trail) {
+        ctx.fillStyle = `rgba(0, 255, 0, ${t.alpha})`;
+        ctx.fillRect(t.x, t.y + (playerSize - currentDisplayHeight), playerSize, currentDisplayHeight);
+        t.alpha -= 0.05;
+    }
+    trail = trail.filter(t => t.alpha > 0);
+}
+function drawDashPreview() {
+    if (dashReady && (keys['ArrowLeft'] || keys['a'] || keys['ArrowRight'] || keys['d'])) {
+        const previewDistance = 120;
+        const previewX = playerX + ((keys['ArrowRight'] || keys['d']) ? previewDistance : (keys['ArrowLeft'] || keys['a']) ? -previewDistance : 0);
+        ctx.strokeStyle = 'cyan';
+        ctx.lineWidth = 2;
+        ctx.globalAlpha = 0.5;
+        ctx.strokeRect(previewX, playerY + (playerSize - currentDisplayHeight), playerSize, currentDisplayHeight);
+        ctx.globalAlpha = 1.0;
+    }
+}
+
+// Game flow unchanged
+function showGameOverScreen() {
+    finalScoreText.textContent = 'Final Score: ' + score;
+    gameOverContainer.style.display = 'block';
+}
+function restartGame() {
+    clearInterval(scoreInterval);
+    gameOver = false;
+    score = 0;
+    playerX = canvas.width / 2 - playerSize / 2;
+    playerY = canvas.height - playerSize - 10;
+    obstacles = [];
+    obstacleSpeed = 3;
+    spawnRate = 0.02;
+    dashCooldownTimer = 0;
+    currentPlatform = null;
+    gameOverContainer.style.display = 'none';
+    titleScreen.style.display = 'none';
+    startScoring();
+    gameLoop();
+}
+function startScoring() {
+    scoreInterval = setInterval(() => {
+        score++;
+        if (score % 10 === 0) {
+            spawnRate += 0.001;
+            obstacleSpeed += 0.05;
+        }
+    }, 1000);
+}
+function gameLoop() {
+    if (gameOver) {
+        clearInterval(scoreInterval);
+        showGameOverScreen();
+        return;
+    }
+    if (isPaused) return;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    handleDiscoMode();
+    drawTrail();
+    drawPlayer();
+    drawDashPreview();
+    moveObstacles();
+    drawObstacles();
+    drawScore();
+    drawDashCooldownBar();
+    updatePlayerPosition();
+    if (dashCooldownTimer > 0) dashCooldownTimer -= 16;
+    if (Math.random() < spawnRate) generateObstacle();
+    requestAnimationFrame(gameLoop);
+}
+function showTitleScreen() {
+    titleScreen.style.display = 'block';
+}
+showTitleScreen();
+</script>
+</body>
+</html>

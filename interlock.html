@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Interlock</title>
+    <script src="https://kit.fontawesome.com/36fe1a5639.js" crossorigin="anonymous"></script>
+    <style>
+        :root { --bg-color: #2c3e50; --board-bg: #34495e; --hero-color: #e74c3c; --accent: #ecf0f1; }
+        body { font-family: 'Segoe UI', sans-serif; background-color: var(--bg-color); color: var(--accent); margin: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; touch-action: none; }
+        .stats { margin-bottom: 20px; font-size: 1.2rem; display: flex; gap: 20px; text-transform: uppercase; letter-spacing: 1px; }
+        .game-container { position: relative; width: 90vw; max-width: 500px; aspect-ratio: 1; background-color: var(--board-bg); border-radius: 12px; padding: 10px; border: 4px solid #465f75; padding-right: 35px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .board { position: relative; width: 100%; height: 100%; background-image: linear-gradient(#2c3e50 2px, transparent 2px), linear-gradient(90deg, #2c3e50 2px, transparent 2px); background-size: 16.66% 16.66%; background-position: -1px -1px; border-radius: 8px; overflow: hidden; }
+        .exit-gate { position: absolute; right: -30px; top: 33.33%; height: 16.66%; width: 30px; background: repeating-linear-gradient(45deg, #27ae60, #27ae60 5px, #2ecc71 5px, #2ecc71 10px); border-radius: 0 6px 6px 0; box-shadow: 0 0 10px #2ecc71; }
+        .block { position: absolute; border-radius: 6px; box-sizing: border-box; transition: transform 0.1s linear; z-index: 10; cursor: grab; border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 4px 6px rgba(0,0,0,0.3); display: flex; justify-content: center; align-items: center; }
+        .block.hero { background: var(--hero-color); }
+        .block.hero::after { content: '➔'; font-size: 1.5rem; color: #fff; animation: pulse 2s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+        .block.c1 { background: #3498db; } .block.c2 { background: #f1c40f; } .block.c3 { background: #9b59b6; } .block.c4 { background: #1abc9c; }
+        .controls { margin-top: 25px; display: flex; gap: 10px; }
+        button { background: #34495e; color: #fff; border: 2px solid #576d7e; padding: 10px 20px; border-radius: 20px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        button:hover { background: #465f75; transform: translateY(-2px); }
+        .modal { position: absolute; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.85); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 100; border-radius: 12px; }
+    </style>
+</head>
+<body>
+    <h1>INTERL<i class="fa-solid fa-lock"></i>CK</h1>
+    <div class="stats"><span>Level: <span id="lvl">1</span></span><span>Moves: <span id="mvs">0</span></span></div>
+    <div class="game-container">
+        <div class="exit-gate"></div>
+        <div class="board" id="board"></div>
+        <div class="modal" id="win"><h2>ESCAPED!</h2><button onclick="nextLvl()">Next Level</button></div>
+    </div>
+    <div class="controls">
+        <button onclick="resetLvl()">Reset</button>
+        <button onclick="importLvl()" style="border-color: #2ecc71;">Play Custom Level</button>
+    </div>
+
+<script>
+    let levels = [
+        [{"id":"hero","type":"h","len":2,"r":2,"c":1,"color":"hero"},{"id":"b1770790521385","type":"v","len":3,"r":0,"c":5,"color":"c4"}],
+        [{"id":"hero","type":"h","len":2,"r":2,"c":0,"color":"hero"},{"id":"b1770790646594","type":"h","len":3,"r":0,"c":1,"color":"c4"},{"id":"b1770790655587","type":"v","len":2,"r":1,"c":3,"color":"c3"},{"id":"b1770790659437","type":"v","len":3,"r":3,"c":3,"color":"c2"}],
+        [{"id":"hero","type":"h","len":2,"r":2,"c":0,"color":"hero"},{"id":"b1771522927428","type":"h","len":3,"r":0,"c":0,"color":"c4"},{"id":"b1771522933241","type":"v","len":2,"r":1,"c":2,"color":"c2"},{"id":"b1771522934603","type":"v","len":2,"r":3,"c":2,"color":"c1"},{"id":"b1771522938986","type":"v","len":3,"r":0,"c":4,"color":"c3"}],
+        [{"id":"hero","type":"h","len":2,"r":2,"c":0,"color":"hero"},{"id":"b1771522986178","type":"h","len":3,"r":4,"c":1,"color":"c4"},{"id":"b1771522991058","type":"h","len":2,"r":3,"c":2,"color":"c2"},{"id":"b1771522994195","type":"v","len":3,"r":0,"c":3,"color":"c3"}],
+        [{"id":"hero","type":"h","len":2,"r":2,"c":0,"color":"hero"},{"id":"b1771523028295","type":"v","len":3,"r":0,"c":4,"color":"c3"},{"id":"b1771523033237","type":"h","len":3,"r":1,"c":1,"color":"c4"},{"id":"b1771523040998","type":"v","len":3,"r":2,"c":2,"color":"c2"},{"id":"b1771523045180","type":"v","len":2,"r":2,"c":3,"color":"c1"},{"id":"b1771523047138","type":"v","len":2,"r":4,"c":3,"color":"c3"}],
+        [{"id":"hero","type":"h","len":2,"r":2,"c":0,"color":"hero"},{"id":"b1771523080656","type":"h","len":2,"r":4,"c":1,"color":"c4"},{"id":"b1771523085554","type":"v","len":2,"r":2,"c":2,"color":"c3"},{"id":"b1771523086785","type":"v","len":2,"r":0,"c":2,"color":"c2"}],
+        [{"id":"hero","type":"h","len":2,"r":2,"c":0,"color":"hero"},{"id":"b1771523119087","type":"h","len":3,"r":0,"c":0,"color":"c4"},{"id":"b1771523134202","type":"v","len":2,"r":1,"c":2,"color":"c3"},{"id":"b1771523138009","type":"h","len":2,"r":4,"c":1,"color":"c1"}],
+        [{"id":"hero","type":"h","len":2,"r":2,"c":0,"color":"hero"},{"id":"b1771523168702","type":"v","len":3,"r":0,"c":5,"color":"c3"},{"id":"b1771523172516","type":"v","len":2,"r":0,"c":4,"color":"c1"},{"id":"b1771523176755","type":"v","len":2,"r":2,"c":2,"color":"c3"},{"id":"b1771523178288","type":"v","len":2,"r":4,"c":2,"color":"c2"},{"id":"b1771523184699","type":"h","len":2,"r":0,"c":1,"color":"c4"},{"id":"b1771523186494","type":"h","len":2,"r":1,"c":0,"color":"c2"},{"id":"b1771523187842","type":"h","len":2,"r":1,"c":2,"color":"c1"}],
+        [{"id":"hero","type":"h","len":2,"r":2,"c":3,"color":"hero"},{"id":"b1771523232491","type":"v","len":2,"r":2,"c":5,"color":"c3"},{"id":"b1771523241683","type":"h","len":2,"r":3,"c":1,"color":"c4"},{"id":"b1771523245509","type":"h","len":3,"r":4,"c":3,"color":"c4"},{"id":"b1771523247513","type":"h","len":2,"r":4,"c":1,"color":"c2"},{"id":"b1771523251053","type":"h","len":2,"r":1,"c":4,"color":"c1"},{"id":"b1771523259067","type":"h","len":3,"r":0,"c":3,"color":"c2"},{"id":"b1771523264216","type":"v","len":3,"r":0,"c":2,"color":"c3"},{"id":"b1771523269177","type":"v","len":2,"r":1,"c":0,"color":"c2"},{"id":"b1771523270457","type":"v","len":2,"r":3,"c":0,"color":"c1"}],
+        [{"id":"hero","type":"h","len":2,"r":2,"c":0,"color":"hero"},{"id":"b1771523336247","type":"h","len":2,"r":1,"c":4,"color":"c1"},{"id":"b1771523340250","type":"v","len":3,"r":2,"c":3,"color":"c3"},{"id":"b1771523344982","type":"v","len":2,"r":2,"c":5,"color":"c2"},{"id":"b1771523346166","type":"v","len":2,"r":4,"c":5,"color":"c1"},{"id":"b1771523352344","type":"h","len":2,"r":1,"c":2,"color":"c4"}],
+        [{"id":"hero","type":"h","len":2,"r":2,"c":0,"color":"hero"},{"id":"b1771523385355","type":"v","len":3,"r":0,"c":2,"color":"c3"},{"id":"b1771523391151","type":"h","len":3,"r":4,"c":0,"color":"c4"},{"id":"b1771523397308","type":"h","len":2,"r":5,"c":1,"color":"c2"},{"id":"b1771523402959","type":"v","len":2,"r":1,"c":3,"color":"c1"}],
+        [{"id":"hero","type":"h","len":2,"r":2,"c":3,"color":"hero"},{"id":"b1771523438203","type":"h","len":3,"r":3,"c":3,"color":"c4"},{"id":"b1771523441735","type":"h","len":3,"r":0,"c":1,"color":"c4"},{"id":"b1771523449938","type":"v","len":2,"r":0,"c":0,"color":"c3"},{"id":"b1771523455055","type":"v","len":2,"r":2,"c":0,"color":"c2"},{"id":"b1771523460968","type":"h","len":2,"r":1,"c":1,"color":"c1"},{"id":"b1771523464844","type":"h","len":2,"r":1,"c":3,"color":"c2"},{"id":"b1771523468047","type":"h","len":2,"r":0,"c":4,"color":"c1"},{"id":"b1771523470666","type":"v","len":2,"r":1,"c":5,"color":"c2"},{"id":"b1771523474659","type":"v","len":2,"r":2,"c":2,"color":"c3"},{"id":"b1771523476257","type":"v","len":2,"r":4,"c":2,"color":"c1"}],
+        [{"id":"hero","type":"h","len":2,"r":2,"c":0,"color":"hero"},{"id":"b1771523548643","type":"h","len":2,"r":3,"c":1,"color":"c4"},{"id":"b1771523552142","type":"h","len":2,"r":0,"c":3,"color":"c1"},{"id":"b1771523553189","type":"h","len":2,"r":1,"c":3,"color":"c2"},{"id":"b1771523558100","type":"v","len":2,"r":1,"c":2,"color":"c3"},{"id":"b1771523560456","type":"h","len":3,"r":0,"c":0,"color":"c4"},{"id":"b1771523565776","type":"v","len":2,"r":3,"c":0,"color":"c3"},{"id":"b1771523570533","type":"h","len":3,"r":5,"c":2,"color":"c4"},{"id":"b1771523581626","type":"v","len":2,"r":2,"c":3,"color":"c1"},{"id":"b1771523585572","type":"h","len":2,"r":5,"c":0,"color":"c2"}],
+        [{"id":"hero","type":"h","len":2,"r":2,"c":0,"color":"hero"},{"id":"b1771523772347","type":"h","len":3,"r":0,"c":0,"color":"c4"},{"id":"b1771523781439","type":"v","len":3,"r":0,"c":5,"color":"c3"},{"id":"b1771523787364","type":"h","len":2,"r":0,"c":3,"color":"c1"},{"id":"b1771523790606","type":"h","len":2,"r":3,"c":4,"color":"c2"},{"id":"b1771523796555","type":"v","len":2,"r":2,"c":3,"color":"c3"},{"id":"b1771523803214","type":"h","len":3,"r":4,"c":1,"color":"c1"},{"id":"b1771523805708","type":"h","len":3,"r":5,"c":1,"color":"c2"}],
+        [{"id":"hero","type":"h","len":2,"r":2,"c":0,"color":"hero"},{"id":"b1771523893215","type":"v","len":2,"r":0,"c":0,"color":"c3"},{"id":"b1771523896497","type":"v","len":2,"r":3,"c":0,"color":"c3"},{"id":"b1771523901020","type":"h","len":3,"r":3,"c":3,"color":"c4"},{"id":"b1771523905373","type":"h","len":2,"r":0,"c":1,"color":"c1"},{"id":"b1771523908308","type":"h","len":2,"r":0,"c":3,"color":"c2"},{"id":"b1771523911422","type":"h","len":2,"r":3,"c":1,"color":"c1"},{"id":"b1771523918401","type":"v","len":2,"r":1,"c":2,"color":"c2"}],
+        [{"id":"hero","type":"h","len":2,"r":2,"c":0,"color":"hero"},{"id":"b1771523969130","type":"h","len":3,"r":1,"c":2,"color":"c4"},{"id":"b1771523975462","type":"v","len":2,"r":1,"c":5,"color":"c3"},{"id":"b1771523980777","type":"v","len":2,"r":2,"c":4,"color":"c2"},{"id":"b1771523985499","type":"h","len":2,"r":4,"c":3,"color":"c1"}],
+        [{"id":"hero","type":"h","len":2,"r":2,"c":0,"color":"hero"},{"id":"b1771524031436","type":"h","len":3,"r":4,"c":2,"color":"c4"},{"id":"b1771524036729","type":"v","len":2,"r":2,"c":4,"color":"c2"},{"id":"b1771524038012","type":"v","len":2,"r":0,"c":4,"color":"c3"}],
+        [{"id":"hero","type":"h","len":2,"r":2,"c":0,"color":"hero"},{"id":"b1771524060839","type":"h","len":3,"r":4,"c":0,"color":"c4"},{"id":"b1771524064216","type":"v","len":3,"r":0,"c":2,"color":"c3"},{"id":"b1771524068098","type":"v","len":2,"r":1,"c":4,"color":"c1"}],
+        [{"id":"hero","type":"h","len":2,"r":2,"c":0,"color":"hero"},{"id":"b1771524105149","type":"v","len":2,"r":1,"c":4,"color":"c1"},{"id":"b1771524110083","type":"h","len":3,"r":0,"c":0,"color":"c4"},{"id":"b1771524112837","type":"h","len":2,"r":0,"c":3,"color":"c2"},{"id":"b1771524116997","type":"h","len":2,"r":3,"c":3,"color":"c2"},{"id":"b1771524124911","type":"v","len":2,"r":2,"c":2,"color":"c3"},{"id":"b1771524130761","type":"h","len":3,"r":5,"c":0,"color":"c1"}],
+        [{"id":"hero","type":"h","len":2,"r":2,"c":0,"color":"hero"},{"id":"b1771524160757","type":"v","len":2,"r":0,"c":3,"color":"c3"},{"id":"b1771524164259","type":"v","len":2,"r":2,"c":3,"color":"c1"},{"id":"b1771524174424","type":"h","len":2,"r":4,"c":2,"color":"c4"},{"id":"b1771524181348","type":"v","len":2,"r":1,"c":4,"color":"c2"},{"id":"b1771524182998","type":"v","len":2,"r":1,"c":5,"color":"c3"}],
+        
+    ];
+
+    let curIdx = 0, blocks = [], moves = 0, drag = false, active = null, start = {x:0, y:0}, acc = 0, cellSize = 0;
+    const board = document.getElementById('board'), lvlDisp = document.getElementById('lvl'), mvsDisp = document.getElementById('mvs'), win = document.getElementById('win');
+
+    function loadLvl(idx) {
+        if (!levels[idx]) return;
+        curIdx = idx; blocks = JSON.parse(JSON.stringify(levels[idx])); moves = 0;
+        lvlDisp.innerText = idx + 1; mvsDisp.innerText = 0; win.style.display = 'none';
+        render();
+    }
+
+    function render() {
+        board.innerHTML = '';
+        cellSize = board.clientWidth / 6;
+        blocks.forEach(b => {
+            const el = document.createElement('div'); el.className = `block ${b.color}`; el.id = b.id;
+            el.style.width = (b.type==='h' ? b.len*16.66 : 16.66)+'%';
+            el.style.height = (b.type==='v' ? b.len*16.66 : 16.66)+'%';
+            el.style.left = (b.c*16.66)+'%'; el.style.top = (b.r*16.66)+'%';
+            el.onpointerdown = (e) => { drag = true; active = b; start = {x:e.clientX, y:e.clientY}; acc = 0; };
+            board.appendChild(el);
+        });
+    }
+
+    window.onpointermove = (e) => {
+        if(!drag || !active) return;
+        let delta = active.type === 'h' ? e.clientX - start.x : e.clientY - start.y;
+        acc += delta; start = {x:e.clientX, y:e.clientY};
+        if(Math.abs(acc) >= cellSize) {
+            let dir = Math.sign(acc);
+            if(move(active, dir)) { moves++; mvsDisp.innerText = moves; acc -= dir * cellSize; check(); }
+            else { acc = dir * cellSize * 0.8; }
+        }
+    };
+    window.onpointerup = () => { drag = false; active = null; };
+
+    function move(b, d) {
+        let nr = b.r + (b.type==='v'?d:0), nc = b.c + (b.type==='h'?d:0);
+        if(nr<0 || nc<0 || (b.type==='h' && nc+b.len>6) || (b.type==='v' && nr+b.len>6)) return false;
+        const collision = blocks.some(o => {
+            if(o.id===b.id) return false;
+            for(let i=0;i<b.len;i++) for(let j=0;j<o.len;j++) {
+                let br = b.type==='v'?nr+i:nr, bc = b.type==='h'?nc+i:nc;
+                let or = o.type==='v'?o.r+j:o.r, oc = o.type==='h'?o.c+j:o.c;
+                if(br===or && bc===oc) return true;
+            } return false;
+        });
+        if(collision) return false;
+        b.r = nr; b.c = nc;
+        let el = document.getElementById(b.id); el.style.left = (b.c*16.66)+'%'; el.style.top = (b.r*16.66)+'%';
+        return true;
+    }
+
+    function check() { if(blocks.find(b=>b.id==='hero').c === 4) win.style.display = 'flex'; }
+    function resetLvl() { loadLvl(curIdx); }
+    function nextLvl() { if(curIdx < levels.length-1) loadLvl(curIdx+1); else alert("Winner! More levels coming soon."); }
+    
+    function importLvl() {
+    let snippet = prompt("Paste your level code:");
+    if(!snippet) return;
+    try {
+        let parsed = JSON.parse(snippet);
+        blocks = parsed;
+        moves = 0;
+        mvsDisp.innerText = 0;
+        win.style.display = 'none';
+        render();
+    } catch(e) { alert("Invalid Code"); }
+}
+
+    window.onresize = render;
+    loadLvl(0);
+</script>
+</body>
+</html>

@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Flooder</title>
+<style>
+    body {
+        margin: 0;
+        background-color: black;
+        color: white;
+        font-family: sans-serif;
+        overflow: hidden;
+    }
+
+    h1 {
+        margin: 10px 0;
+    }
+
+    #ui {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: calc(100vh - 140px);
+        gap: 24px;
+    }
+
+    #palette {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .palette-color {
+        width: 40px;
+        height: 40px;
+        border: 3px solid #444;
+        cursor: pointer;
+        box-sizing: border-box;
+    }
+
+    .palette-color.disabled {
+        opacity: 0.25;
+        cursor: default;
+    }
+
+    .palette-color.active {
+        border-color: white;
+    }
+
+    #board-wrapper {
+        border: solid black 8px;
+        display: inline-block;
+    }
+
+    #board-scale {
+        transform-origin: top left;
+    }
+
+    #game {
+        position: relative;
+    }
+
+    .cell {
+        position: absolute;
+        width: 20px;
+        height: 20px;
+    }
+
+    .start-cell {
+        box-shadow: inset 0 0 0 2px white;
+    }
+
+    .start-cell::after {
+        content: '';
+        position: absolute;
+        width: 6px;
+        height: 6px;
+        background: white;
+        border-radius: 50%;
+        top: 7px;
+        left: 7px;
+    }
+
+    #moveinfo {
+        text-align: center;
+        font-size: 180%;
+        margin-top: 10px;
+    }
+
+    #status {
+        font-size: 70%;
+        margin-top: 4px;
+        opacity: 0.85;
+    }
+</style>
+
+<script>
+var boxw = 20;
+var boxh = 20;
+
+var nrows = 14;
+var ncols = 14;
+
+var maxclick = 25;
+var nclick = 0;
+
+var colors = [
+   'red',
+   'yellow',
+   '#0b0',
+   '#ffc200',
+   'purple',
+   '#20b2aa',
+   '#66f',
+   '#f0f'
+];
+var ncolors = 6;
+
+var grid = [];
+var box = [];
+var game;
+var allowedColors = new Set();
+
+var gameOver = false;
+var gameResult = null; // "win" | "lose"
+
+function rand(n) {
+    return Math.floor(Math.random() * n);
+}
+
+function drawgrid() {
+    readquery();
+    setopt('sz', nrows);
+    setopt('nc', ncolors);
+
+    game = document.getElementById('game');
+    game.innerHTML = '';
+    grid = [];
+    box = [];
+    nclick = 0;
+    gameOver = false;
+    gameResult = null;
+
+    game.style.width = ncols * boxw + 'px';
+    game.style.height = nrows * boxh + 'px';
+
+    for (var x = 0; x < ncols; x++) {
+        grid[x] = [];
+        box[x] = [];
+        for (var y = 0; y < nrows; y++) {
+            var c = rand(ncolors);
+            grid[x][y] = c;
+            box[x][y] = makebox(x, y, c);
+        }
+    }
+
+    box[0][0].classList.add('start-cell');
+
+    buildPalette();
+    scaleBoard();
+    updateAllowedColors();
+    updateUI();
+}
+
+function makebox(x, y, colorIndex) {
+    var div = document.createElement("div");
+    div.className = 'cell';
+    div.style.left = x * boxw + 'px';
+    div.style.top = y * boxh + 'px';
+    div.style.backgroundColor = colors[colorIndex];
+    div.onclick = function () {
+        tryFlood(grid[x][y]);
+    };
+    game.appendChild(div);
+    return div;
+}
+
+function tryFlood(newcolor) {
+    if (gameOver) return;
+    if (!allowedColors.has(newcolor)) return;
+    flood(newcolor);
+}
+
+function flood(newcolor) {
+    var oldcolor = grid[0][0];
+    if (oldcolor === newcolor) return;
+
+    nclick++;
+
+    if (nclick === 1) {
+        box[0][0].classList.remove('start-cell');
+    }
+
+    if (nclick > maxclick && !gameOver) {
+        gameOver = true;
+        gameResult = "lose";
+    }
+
+    paint([0, 0], oldcolor, newcolor);
+}
+
+function paint(job, oldcolor, newcolor) {
+    var next = [];
+
+    while (job.length) {
+        var y = job.pop();
+        var x = job.pop();
+
+        if (grid[x][y] !== oldcolor) continue;
+
+        grid[x][y] = newcolor;
+        box[x][y].style.backgroundColor = colors[newcolor];
+
+        if (x > 0) next.push(x - 1, y);
+        if (x < ncols - 1) next.push(x + 1, y);
+        if (y > 0) next.push(x, y - 1);
+        if (y < nrows - 1) next.push(x, y + 1);
+    }
+
+    if (next.length)
+        setTimeout(function () {
+            paint(next, oldcolor, newcolor);
+        }, 12);
+    else {
+        updateAllowedColors();
+        checkWinCondition();
+        updateUI();
+    }
+}
+
+function checkWinCondition() {
+    if (gameOver) return;
+
+    var base = grid[0][0];
+    for (var x = 0; x < ncols; x++)
+        for (var y = 0; y < nrows; y++)
+            if (grid[x][y] !== base)
+                return;
+
+    gameOver = true;
+    gameResult = "win";
+}
+
+function updateAllowedColors() {
+    allowedColors.clear();
+    var base = grid[0][0];
+    var seen = new Set();
+    var stack = [[0, 0]];
+
+    while (stack.length) {
+        var p = stack.pop();
+        var x = p[0], y = p[1];
+        var key = x + ',' + y;
+        if (seen.has(key)) continue;
+        seen.add(key);
+
+        if (grid[x][y] !== base) continue;
+
+        var neighbors = [
+            [x-1,y],[x+1,y],[x,y-1],[x,y+1]
+        ];
+
+        for (var n of neighbors) {
+            var nx = n[0], ny = n[1];
+            if (nx < 0 || ny < 0 || nx >= ncols || ny >= nrows) continue;
+            if (grid[nx][ny] === base)
+                stack.push([nx, ny]);
+            else
+                allowedColors.add(grid[nx][ny]);
+        }
+    }
+
+    updatePaletteState();
+}
+
+function buildPalette() {
+    var p = document.getElementById('palette');
+    p.innerHTML = '';
+
+    for (let i = 0; i < ncolors; i++) {
+        let d = document.createElement('div');
+        d.className = 'palette-color';
+        d.style.backgroundColor = colors[i];
+        d.onclick = function () {
+            tryFlood(i);
+        };
+        p.appendChild(d);
+    }
+}
+
+function updatePaletteState() {
+    var items = document.getElementsByClassName('palette-color');
+    var current = grid[0][0];
+
+    for (var i = 0; i < items.length; i++) {
+        items[i].classList.toggle('active', i === current);
+        items[i].classList.toggle('disabled', !allowedColors.has(i) || gameOver);
+    }
+}
+
+function updateUI() {
+    var moveinfo = document.getElementById('moveinfo');
+    var status = document.getElementById('status');
+
+    moveinfo.textContent = nclick + ' / ' + maxclick;
+
+    if (gameResult === "win")
+        status.innerHTML = '<strong>You Win!</strong>';
+    else if (gameResult === "lose")
+        status.innerHTML = '<strong>You Lose</strong>';
+    else if (nclick === 0)
+        status.textContent = 'Choose an adjacent color to start flooding';
+    else
+        status.textContent = '';
+}
+
+function scaleBoard() {
+    var scaleBox = document.getElementById('board-scale');
+    var maxW = window.innerWidth - 200;
+    var maxH = window.innerHeight - 220;
+
+    var scale = Math.min(
+        maxW / (ncols * boxw),
+        maxH / (nrows * boxh),
+        1
+    );
+
+    scaleBox.style.transform = 'scale(' + scale + ')';
+}
+
+function setopt(name, val) {
+    var sel = document.getElementsByName(name)[0];
+    for (var i = 0; i < sel.options.length; i++)
+        if (sel.options[i].value == val)
+            sel.selectedIndex = i;
+}
+
+function readquery() {
+    var q = location.search.substr(1).split('&');
+    for (var i = 0; i < q.length; i++) {
+        var z = q[i].split('=');
+        if (z[0] == 'sz') nrows = ncols = +z[1];
+        if (z[0] == 'nc') ncolors = +z[1];
+    }
+    maxclick = Math.floor(25 * ((nrows + ncols) * ncolors) / ((14 + 14) * 6));
+}
+
+window.onresize = scaleBoard;
+</script>
+</head>
+
+<body>
+<center>
+<h1>Flooder</h1>
+
+<form method="GET">
+Size:
+<select name="sz">
+<option value="6">6x6</option>
+<option value="10">10x10</option>
+<option value="14">14x14</option>
+<option value="18">18x18</option>
+<option value="22">22x22</option>
+<option value="26">26x26</option>
+</select>
+
+Colors:
+<select name="nc">
+<option value="3">3</option>
+<option value="4">4</option>
+<option value="5">5</option>
+<option value="6">6</option>
+<option value="7">7</option>
+<option value="8">8</option>
+</select>
+
+<input type="submit" value="New Game">
+</form>
+
+<div id="ui">
+    <div id="palette"></div>
+
+    <div>
+        <div id="board-wrapper">
+            <div id="board-scale">
+                <div id="game"></div>
+            </div>
+        </div>
+        <div id="moveinfo"></div>
+        <div id="status"></div>
+    </div>
+</div>
+</center>
+
+<script>
+drawgrid();
+</script>
+</body>
+</html>

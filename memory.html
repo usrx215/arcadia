@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arcadia - Memory</title>
+    <link rel="icon" type="image/x-icon" href="images/memory.png">
+    <style>
+        :root {
+            --bg-color: #2c3e50;
+            --board-bg: #34495e;
+            --hero-color: #e74c3c;
+            --accent: #ecf0f1;
+            --card-back: #465f75;
+            --card-flipped: #f1c40f;
+            --card-matched: #1abc9c;
+            --border-color: #576d7e;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            background-color: var(--bg-color);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            color: var(--accent);
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1 {
+            font-size: 2em;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin: 0 0 10px 0;
+            font-weight: 700;
+        }
+
+        h1 span { color: var(--hero-color); }
+
+        .stats {
+            margin-bottom: 14px;
+            font-size: 1rem;
+            display: flex;
+            gap: 24px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--accent);
+            opacity: 0.85;
+        }
+
+        .stats span b { color: var(--accent); font-weight: 700; }
+
+        .size-controls {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-bottom: 16px;
+        }
+
+        .size-btn {
+            background: var(--board-bg);
+            color: var(--accent);
+            border: 2px solid var(--border-color);
+            padding: 6px 14px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-family: 'Segoe UI', sans-serif;
+            font-weight: bold;
+            font-size: 0.8em;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            transition: background 0.2s, transform 0.2s, border-color 0.2s;
+        }
+
+        .size-btn:hover { background: #465f75; transform: translateY(-2px); }
+
+        .size-btn.active {
+            border-color: #2ecc71;
+            color: #2ecc71;
+        }
+
+        .game-container {
+            background-color: var(--board-bg);
+            border-radius: 12px;
+            padding: 16px;
+            border: 4px solid var(--border-color);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        #game-board {
+            display: grid;
+            gap: 8px;
+        }
+
+        .card {
+            background-color: var(--card-back);
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+            font-weight: 700;
+            transition: transform 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+
+        .card:hover:not(.matched) { transform: translateY(-2px); border-color: var(--accent); }
+
+        .card.flipped {
+            background-color: var(--card-flipped);
+            border-color: #d4a017;
+            color: #2c3e50;
+        }
+
+        .card.matched {
+            background-color: var(--card-matched);
+            border-color: #148f77;
+            cursor: default;
+            transform: none;
+        }
+
+        .card.matched:hover { transform: none; border-color: #148f77; }
+
+        #new-game-btn {
+            display: none;
+            margin-top: 20px;
+            padding: 10px 24px;
+            font-size: 0.95em;
+            font-family: 'Segoe UI', sans-serif;
+            font-weight: bold;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            background: var(--board-bg);
+            color: var(--accent);
+            border: 2px solid #2ecc71;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.2s;
+        }
+
+        #new-game-btn:hover { background: #465f75; transform: translateY(-2px); }
+
+        @keyframes winPulse {
+            0%   { background-color: var(--card-matched); border-color: #148f77; }
+            50%  { background-color: #f1c40f; border-color: #d4a017; }
+            100% { background-color: var(--card-matched); border-color: #148f77; }
+        }
+
+        .win-animation { animation: winPulse 0.8s infinite; }
+    </style>
+</head>
+<body>
+    <h1><span>A</span>rcadia - Memory</h1>
+    <div class="stats">
+        <span>Pairs: <b><span id="pairs">0</span> / <span id="total-pairs">12</span></b></span>
+        <span>Moves: <b><span id="moves">0</span></b></span>
+    </div>
+
+    <div class="size-controls" id="size-controls"></div>
+
+    <div class="game-container">
+        <div id="game-board"></div>
+    </div>
+    <button id="new-game-btn">New Game</button>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // A-Z (26) then 1-24 to reach 50 unique symbols needed for 10x10 (50 pairs)
+            const symbols = [
+                'A','B','C','D','E','F','G','H','I','J','K','L','M',
+                'N','O','P','Q','R','S','T','U','V','W','X','Y','Z',
+                '1','2','3','4','5','6','7','8','9','10','11','12','13',
+                '14','15','16','17','18','19','20','21','22','23','24'
+            ];
+
+            // Grid size options: label shown on buttons, cols and rows for the grid
+            const sizes = [
+                { label: '4×4',   cols: 4,  rows: 4  },
+                { label: '4×6',   cols: 6,  rows: 4  },
+                { label: '6×6',   cols: 6,  rows: 6  },
+                { label: '6×8',   cols: 8,  rows: 6  },
+                { label: '8×8',   cols: 8,  rows: 8  },
+                { label: '8×10',  cols: 10, rows: 8  },
+                { label: '10×10', cols: 10, rows: 10 },
+            ];
+
+            // Card pixel size shrinks as the grid gets wider
+            const cardSizeFor = { 4: 80, 6: 72, 8: 62, 10: 54 };
+
+            let currentSize = sizes[1]; // default 4×6 to match original
+            let cardArray = [];
+            let hasFlippedCard = false;
+            let lockBoard = false;
+            let firstCard, secondCard;
+            let matchedCards = 0;
+            let moveCount = 0;
+
+            const gameBoard      = document.getElementById('game-board');
+            const newGameBtn     = document.getElementById('new-game-btn');
+            const pairsDisp      = document.getElementById('pairs');
+            const totalPairsDisp = document.getElementById('total-pairs');
+            const movesDisp      = document.getElementById('moves');
+            const sizeControls   = document.getElementById('size-controls');
+
+            // Build size selector buttons
+            sizes.forEach(size => {
+                const btn = document.createElement('button');
+                btn.className = 'size-btn' + (size === currentSize ? ' active' : '');
+                btn.textContent = size.label;
+                btn.addEventListener('click', () => {
+                    currentSize = size;
+                    document.querySelectorAll('.size-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    newGameBtn.style.display = 'none';
+                    startGame();
+                });
+                sizeControls.appendChild(btn);
+            });
+
+            function startGame() {
+                const { cols, rows } = currentSize;
+                const totalCards = cols * rows;
+                const pairs = totalCards / 2;
+                const cardSize = cardSizeFor[cols] || 54;
+                const fontSize = cardSize >= 72 ? '1.6em' : cardSize >= 62 ? '1.3em' : '1.1em';
+
+                gameBoard.style.gridTemplateColumns = `repeat(${cols}, ${cardSize}px)`;
+
+                const pool = symbols.slice(0, pairs);
+                cardArray = [...pool, ...pool].sort(() => 0.5 - Math.random());
+
+                matchedCards = 0;
+                moveCount = 0;
+                pairsDisp.textContent = '0';
+                totalPairsDisp.textContent = pairs;
+                movesDisp.textContent = '0';
+
+                gameBoard.innerHTML = '';
+                cardArray.forEach((symbol, index) => {
+                    const card = document.createElement('div');
+                    card.classList.add('card');
+                    card.style.width    = cardSize + 'px';
+                    card.style.height   = cardSize + 'px';
+                    card.style.fontSize = fontSize;
+                    card.dataset.symbol = symbol;
+                    card.dataset.index  = index;
+                    card.addEventListener('click', flipCard);
+                    gameBoard.appendChild(card);
+                });
+            }
+
+            function flipCard() {
+                if (lockBoard) return;
+                if (this === firstCard) return;
+
+                this.classList.add('flipped');
+                this.textContent = this.dataset.symbol;
+
+                if (!hasFlippedCard) {
+                    hasFlippedCard = true;
+                    firstCard = this;
+                    return;
+                }
+
+                secondCard = this;
+                moveCount++;
+                movesDisp.textContent = moveCount;
+                checkForMatch();
+            }
+
+            function checkForMatch() {
+                firstCard.dataset.symbol === secondCard.dataset.symbol ? disableCards() : unflipCards();
+            }
+
+            function disableCards() {
+                firstCard.removeEventListener('click', flipCard);
+                secondCard.removeEventListener('click', flipCard);
+                firstCard.classList.remove('flipped');
+                secondCard.classList.remove('flipped');
+                firstCard.classList.add('matched');
+                secondCard.classList.add('matched');
+                matchedCards += 2;
+                pairsDisp.textContent = matchedCards / 2;
+
+                if (matchedCards === cardArray.length) setTimeout(showWinAnimation, 200);
+
+                resetBoard();
+            }
+
+            function unflipCards() {
+                lockBoard = true;
+                setTimeout(() => {
+                    firstCard.classList.remove('flipped');
+                    secondCard.classList.remove('flipped');
+                    firstCard.textContent  = '';
+                    secondCard.textContent = '';
+                    resetBoard();
+                }, 900);
+            }
+
+            function resetBoard() {
+                [hasFlippedCard, lockBoard] = [false, false];
+                [firstCard, secondCard]     = [null, null];
+            }
+
+            function showWinAnimation() {
+                document.querySelectorAll('.card.matched').forEach(c => c.classList.add('win-animation'));
+                newGameBtn.style.display = 'block';
+            }
+
+            newGameBtn.addEventListener('click', () => {
+                document.querySelectorAll('.card').forEach(c => c.classList.remove('win-animation'));
+                newGameBtn.style.display = 'none';
+                startGame();
+            });
+
+            startGame();
+        });
+    </script>
+</body>
+</html>

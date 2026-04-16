@@ -1,0 +1,496 @@
+ <!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PongOut</title>
+<link rel="icon" type="image/x-icon" href="https://usrx215.github.io/scgames/pongout.png">
+<style>
+  body {
+    margin: 0;
+    background: #000;
+    overflow: hidden;
+    font-family: Arial, sans-serif;
+    color: white;
+  }
+  canvas {
+    display: block;
+    margin: 0 auto;
+    background: #111;
+  }
+  #titleScreen, #botFightSelection {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw; height: 100vh;
+    background: #111;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+    z-index: 10;
+  }
+  #titleScreen h1, #botFightSelection h1 {
+    font-size: 3rem;
+    margin-bottom: 30px;
+  }
+  #titleScreen button, #botFightSelection button {
+    font-size: 1.5rem;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 6px;
+    background-color: #222;
+    color: white;
+    cursor: pointer;
+    width: 220px;
+    transition: background-color 0.3s;
+  }
+  #titleScreen button:hover, #botFightSelection button:hover {
+    background-color: #555;
+  }
+  #scoreBoard {
+    text-align: center;
+    font-size: 18px;
+    margin-top: 10px;
+  }
+  #resetButton {
+    display: block;
+    margin: 10px auto;
+    padding: 8px 16px;
+    font-size: 16px;
+    cursor: pointer;
+    background: #222;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    transition: background-color 0.3s;
+  }
+  #resetButton:hover {
+    background-color: #555;
+  }
+  #botFightSelection {
+    display: none;
+  }
+  #botFightSelection label {
+    font-size: 1.2rem;
+    margin: 10px 0 5px;
+  }
+  #botFightSelection select {
+    font-size: 1.2rem;
+    padding: 6px;
+    border-radius: 6px;
+    border: none;
+    width: 250px;
+  }
+</style>
+</head>
+<body>
+
+<div id="titleScreen">
+  <h1>PongOut</h1>
+  <p>Select Difficulty:</p>
+  <button data-bot="none">No Bot (Manual Control)</button>
+  <button data-bot="easy">Easy Bot</button>
+  <button data-bot="medium">Medium Bot</button>
+  <button data-bot="hard">Hard Bot</button>
+  <button data-bot="impossible">Impossible Bot</button>
+  <button data-bot="botfight">Bot Fight</button>
+</div>
+
+<!-- Bot Fight Difficulty Selection Screen -->
+<div id="botFightSelection">
+  <h1>Bot Fight Mode</h1>
+  <label for="leftBotDifficulty">Left Bot Difficulty:</label>
+  <select id="leftBotDifficulty">
+    <option value="easy">Easy</option>
+    <option value="medium" selected>Medium</option>
+    <option value="hard">Hard</option>
+    <option value="impossible">Impossible</option>
+  </select>
+  <label for="rightBotDifficulty">Right Bot Difficulty:</label>
+  <select id="rightBotDifficulty">
+    <option value="easy">Easy</option>
+    <option value="medium" selected>Medium</option>
+    <option value="hard">Hard</option>
+    <option value="impossible">Impossible</option>
+  </select>
+  <button id="startBotFight">Start Bot Fight</button>
+  <button id="backToTitle">Back to Title Screen</button>
+</div>
+
+<canvas id="gameCanvas" width="800" height="600"></canvas>
+<div id="scoreBoard">
+  <span id="leftScore">Left: 0</span> &nbsp;&nbsp;|&nbsp;&nbsp; <span id="rightScore">Right: 0</span>
+</div>
+<button id="resetButton">Reset Game</button>
+
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+const titleScreen = document.getElementById("titleScreen");
+const botFightSelection = document.getElementById("botFightSelection");
+const resetButton = document.getElementById("resetButton");
+const leftScoreSpan = document.getElementById("leftScore");
+const rightScoreSpan = document.getElementById("rightScore");
+
+const leftBotDifficultySelect = document.getElementById("leftBotDifficulty");
+const rightBotDifficultySelect = document.getElementById("rightBotDifficulty");
+const startBotFightButton = document.getElementById("startBotFight");
+const backToTitleButton = document.getElementById("backToTitle");
+
+const paddleWidth = 10;
+const paddleHeight = 100;
+const paddleSpeed = 5;
+
+const ballSize = 10;
+
+const brickWidth = 20;
+const brickHeight = 20;
+const brickPadding = 10;
+const clearGapHeight = 100;
+
+const columnGap = 10;
+
+const centerX = canvas.width / 2;
+
+const brickColumns = [
+  centerX - (2 * brickWidth + 2 * columnGap),
+  centerX - (brickWidth + columnGap),
+  centerX,
+  centerX + brickWidth + columnGap,
+  centerX + 2 * (brickWidth + columnGap)
+];
+
+let bricks = [];
+
+let leftPaddle = { x: 0, y: canvas.height / 2 - paddleHeight / 2, speed: paddleSpeed };
+let rightPaddle = { x: canvas.width - paddleWidth, y: canvas.height / 2 - paddleHeight / 2, speed: paddleSpeed };
+
+let ball = { x: canvas.width / 2, y: canvas.height / 2, size: ballSize, speedX: -4, speedY: 4 };
+
+let keys = {};
+
+let leftScore = 0;
+let rightScore = 0;
+const maxScore = 7;
+
+let botMode = "none"; // For single bot modes: none, easy, medium, hard, impossible
+let leftBotMode = null;  // For Bot Fight mode - left bot difficulty
+let rightBotMode = null; // For Bot Fight mode - right bot difficulty
+
+let ballPositions = [];
+const maxHistoryTime = 1000;
+
+let gameIsOver = false;
+let animationFrameId = null;
+
+let botFightActive = false;
+
+function setupBricks() {
+  bricks = [];
+  brickColumns.forEach(columnX => {
+    for (let y = 0; y <= canvas.height - brickHeight; y += brickHeight + brickPadding) {
+      if (
+        y + brickHeight > canvas.height / 2 - clearGapHeight / 2 &&
+        y < canvas.height / 2 + clearGapHeight / 2
+      ) {
+        continue;
+      }
+      bricks.push({ x: columnX, y: y, status: 1 });
+    }
+  });
+}
+
+function resetGame() {
+  leftScore = 0;
+  rightScore = 0;
+  updateScores();
+
+  leftPaddle.y = canvas.height / 2 - paddleHeight / 2;
+  rightPaddle.y = canvas.height / 2 - paddleHeight / 2;
+
+  ball.x = canvas.width / 2;
+  ball.y = canvas.height / 2;
+  ball.speedX = Math.random() < 0.5 ? 4 : -4;
+  ball.speedY = (Math.random() < 0.5 ? 1 : -1) * 4;
+
+
+  gameIsOver = false;
+  ballPositions = [];
+
+  setupBricks();
+  if (!animationFrameId) gameLoop();
+}
+
+function updateScores() {
+  leftScoreSpan.textContent = `Left: ${leftScore}`;
+  rightScoreSpan.textContent = `Right: ${rightScore}`;
+}
+
+window.addEventListener("keydown", (e) => {
+  keys[e.key.toLowerCase()] = true;
+});
+
+window.addEventListener("keyup", (e) => {
+  keys[e.key.toLowerCase()] = false;
+});
+
+function drawPaddle(x, y) {
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(x, y, paddleWidth, paddleHeight);
+}
+
+function drawBall() {
+  ctx.beginPath();
+  ctx.arc(ball.x, ball.y, ball.size, 0, Math.PI * 2);
+  ctx.fillStyle = "#fff";
+  ctx.fill();
+  ctx.closePath();
+}
+
+function drawBricks() {
+  bricks.forEach((b) => {
+    if (b.status === 1) {
+      ctx.fillStyle = "#b22222";
+      ctx.fillRect(b.x, b.y, brickWidth, brickHeight);
+    }
+  });
+}
+
+function collisionDetection() {
+  bricks.forEach((b) => {
+    if (b.status === 1) {
+      if (
+        ball.x + ball.size > b.x &&
+        ball.x - ball.size < b.x + brickWidth &&
+        ball.y + ball.size > b.y &&
+        ball.y - ball.size < b.y + brickHeight
+      ) {
+        ball.speedX = -ball.speedX;
+        b.status = 0;
+      }
+    }
+  });
+}
+
+function getDelayedBallY(delayMs) {
+  const now = performance.now();
+  for (let i = ballPositions.length - 1; i >= 0; i--) {
+    if (ballPositions[i].time <= now - delayMs) {
+      return ballPositions[i].y;
+    }
+  }
+  return ball.y;
+}
+
+function updatePaddleBot(paddle, difficulty) {
+  if (!difficulty) return;
+
+  let targetY;
+
+  if (difficulty === "impossible") {
+    targetY = ball.y - paddleHeight / 2;
+    if (targetY < 0) targetY = 0;
+    if (targetY > canvas.height - paddleHeight) targetY = canvas.height - paddleHeight;
+    paddle.y = targetY;
+  } else {
+    let delayMs = 0;
+    if (difficulty === "easy") delayMs = 300;
+    else if (difficulty === "medium") delayMs = 250;
+    else if (difficulty === "hard") delayMs = 200;
+
+    targetY = getDelayedBallY(delayMs) - paddleHeight / 2;
+
+    if (paddle.y + paddleHeight / 2 < targetY + paddleHeight / 2) {
+      paddle.y += paddle.speed;
+    } else if (paddle.y + paddleHeight / 2 > targetY + paddleHeight / 2) {
+      paddle.y -= paddle.speed;
+    }
+    if (paddle.y < 0) paddle.y = 0;
+    if (paddle.y > canvas.height - paddleHeight) paddle.y = canvas.height - paddleHeight;
+  }
+}
+
+function update() {
+  if (botFightActive) {
+    // Both paddles are bots
+    updatePaddleBot(leftPaddle, leftBotMode);
+    updatePaddleBot(rightPaddle, rightBotMode);
+  } else if (botMode === "none") {
+    // Manual controls for both paddles
+    if (keys["w"] && leftPaddle.y > 0) leftPaddle.y -= leftPaddle.speed;
+    if (keys["s"] && leftPaddle.y < canvas.height - paddleHeight) leftPaddle.y += leftPaddle.speed;
+
+    if (keys["arrowup"] && rightPaddle.y > 0) rightPaddle.y -= rightPaddle.speed;
+    if (keys["arrowdown"] && rightPaddle.y < canvas.height - paddleHeight) rightPaddle.y += rightPaddle.speed;
+  } else {
+    // Left manual, right bot
+    if (keys["w"] && leftPaddle.y > 0) leftPaddle.y -= leftPaddle.speed;
+    if (keys["s"] && leftPaddle.y < canvas.height - paddleHeight) leftPaddle.y += leftPaddle.speed;
+    updatePaddleBot(rightPaddle, botMode);
+  }
+
+  ball.x += ball.speedX;
+  ball.y += ball.speedY;
+
+  if (ball.y + ball.size > canvas.height || ball.y - ball.size < 0) {
+    ball.speedY = -ball.speedY;
+  }
+
+  if (
+    ball.x - ball.size < leftPaddle.x + paddleWidth &&
+    ball.y > leftPaddle.y &&
+    ball.y < leftPaddle.y + paddleHeight
+  ) {
+    ball.speedX = -ball.speedX;
+    ball.x = leftPaddle.x + paddleWidth + ball.size;
+  }
+
+  if (
+    ball.x + ball.size > rightPaddle.x &&
+    ball.y > rightPaddle.y &&
+    ball.y < rightPaddle.y + paddleHeight
+  ) {
+    ball.speedX = -ball.speedX;
+    ball.x = rightPaddle.x - ball.size;
+  }
+
+  collisionDetection();
+
+  if (ball.x < 0) {
+    rightScore++;
+    updateScores();
+    resetBall();
+  } else if (ball.x > canvas.width) {
+    leftScore++;
+    updateScores();
+    resetBall();
+  }
+
+  if (leftScore >= maxScore || rightScore >= maxScore) {
+    gameIsOver = true;
+    showGameOver();
+  }
+
+  ballPositions.push({ time: performance.now(), y: ball.y });
+  while (ballPositions.length > 0 && ballPositions[0].time < performance.now() - maxHistoryTime) {
+    ballPositions.shift();
+  }
+}
+
+function resetBall() {
+  ball.x = canvas.width / 2;
+  ball.y = canvas.height / 2;
+  ball.speedX = Math.random() < 0.5 ? 4 : -4;
+  ball.speedY = (Math.random() < 0.5 ? 1 : -1) * 4;
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  drawPaddle(leftPaddle.x, leftPaddle.y);
+  drawPaddle(rightPaddle.x, rightPaddle.y);
+
+  drawBall();
+  drawBricks();
+
+  ctx.strokeStyle = "#666";
+  ctx.setLineDash([10, 15]);
+  ctx.beginPath();
+  ctx.moveTo(centerX, 0);
+  ctx.lineTo(centerX, canvas.height);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+function showGameOver() {
+  setTimeout(() => {
+    alert(`Game Over! ${leftScore >= maxScore ? "Left Player" : "Right Player"} wins!`);
+    resetGame();
+    showTitleScreen();
+  }, 100);
+}
+
+function gameLoop(timestamp) {
+  if (!gameIsOver) {
+    if (timestamp) {
+      ballPositions.push({ time: performance.now(), y: ball.y });
+      while (ballPositions.length > 0 && ballPositions[0].time < performance.now() - maxHistoryTime) {
+        ballPositions.shift();
+      }
+    }
+    update();
+    draw();
+    animationFrameId = requestAnimationFrame(gameLoop);
+  }
+}
+
+function showGameUI() {
+  canvas.style.display = "block";
+  resetButton.style.display = "block";
+  document.getElementById("scoreBoard").style.display = "block";
+}
+
+function hideGameUI() {
+  canvas.style.display = "none";
+  resetButton.style.display = "none";
+  document.getElementById("scoreBoard").style.display = "none";
+}
+
+function showTitleScreen() {
+  titleScreen.style.display = "flex";
+  botFightSelection.style.display = "none";
+  hideGameUI();
+  botFightActive = false;
+  botMode = "none";
+  leftBotMode = null;
+  rightBotMode = null;
+}
+
+function showBotFightSelection() {
+  titleScreen.style.display = "none";
+  botFightSelection.style.display = "flex";
+  hideGameUI();
+}
+
+resetButton.addEventListener("click", () => {
+  resetGame();
+});
+
+// Title screen buttons
+titleScreen.querySelectorAll("button").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const selectedBot = btn.getAttribute("data-bot");
+    if (selectedBot === "botfight") {
+      showBotFightSelection();
+    } else {
+      botMode = selectedBot;
+      botFightActive = false;
+      leftBotMode = null;
+      rightBotMode = null;
+      titleScreen.style.display = "none";
+      showGameUI();
+      resetGame();
+    }
+  });
+});
+
+startBotFightButton.addEventListener("click", () => {
+  leftBotMode = leftBotDifficultySelect.value;
+  rightBotMode = rightBotDifficultySelect.value;
+  botFightActive = true;
+  botMode = null;
+  botFightSelection.style.display = "none";
+  showGameUI();
+  resetGame();
+});
+
+backToTitleButton.addEventListener("click", () => {
+  showTitleScreen();
+});
+
+showTitleScreen();
+</script>
+
+</body>
+</html>

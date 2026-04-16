@@ -1,0 +1,20 @@
+{
+    "name": "usrx215's Arcadia",
+    "short_name": "Arcadia",
+    "start_url": "/index.html",
+    "display": "standalone",
+    "theme_color": "#20b2aa",
+    "background_color": "#000000",
+    "icons": [
+        {
+            "src": "images/arcadia-circle.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        },
+        {
+            "src": "images/arcadia-square.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}
