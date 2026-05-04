@@ -7,11 +7,16 @@
 <link rel="icon" type="image/x-icon" href="images/arcadia-circle.png">
 <link rel="manifest" href="/manifest.json">
 <style>
+:root {
+    --c1: #ffc200;
+    --c2: #20b2aa;
+    --c3: #32cd32;
+}
 body {
     font-family: Arial, sans-serif;
     margin: 0;
     padding: 0;
-    background: linear-gradient(-45deg, #ffc200, #20b2aa, #32cd32);
+    background: linear-gradient(-45deg, var(--c1), var(--c2), var(--c3));
     background-size: 400% 400%;
     animation: gradient 15s ease infinite;
     min-height: 100vh;
@@ -29,7 +34,7 @@ body {
 }
 
 header {
-    background: linear-gradient(45deg, #20b2aa, #32cd32);
+    background: linear-gradient(45deg, var(--c2), var(--c3));
     color: white;
     padding: 1em 0;
     text-align: center;
@@ -86,12 +91,36 @@ footer {
     padding: 10px;
     text-align: center;
 }
+
+/* Dark/Light mode toggle */
+#theme-toggle {
+    position: fixed;
+    top: 12px;
+    right: 16px;
+    z-index: 1000;
+    background: #ffffff33;
+    border: 1px solid #ffffff66;
+    color: white;
+    padding: 6px 14px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    backdrop-filter: blur(4px);
+    transition: background 0.2s;
+}
+#theme-toggle:hover {
+    background: #ffffff55;
+}
 </style>
 </head>
 <body>
 <!-- <div id="announcement">
 <h1>Test announcement, please ignore if you're looking at the source code :) thats right i see you taking a peek, but the site is open source so who cares?</h1>
 </div> -->
+
+<button id="theme-toggle" onclick="toggleTheme()" title="Toggle dark/light mode">🌙 Dark</button>
+
 <header>
     <img src="images/arcadia-banner.png" alt="Arcadia Logo">
 </header>
@@ -215,5 +244,29 @@ footer {
 <footer>
     Made with <strong style="color: red;">♥</strong> by <a href="https://usrx.space" target="_blank">usrx215</a>
 </footer>
+
+<script>
+const LIGHT = { c1: '#ffc200', c2: '#20b2aa', c3: '#32cd32' };
+const DARK  = { c1: '#866700', c2: '#16524f', c3: '#1e661e' };
+
+let isDark = localStorage.getItem('arcadia-theme') === 'dark';
+
+function applyTheme() {
+    const t = isDark ? DARK : LIGHT;
+    const root = document.documentElement;
+    root.style.setProperty('--c1', t.c1);
+    root.style.setProperty('--c2', t.c2);
+    root.style.setProperty('--c3', t.c3);
+    document.getElementById('theme-toggle').textContent = isDark ? '☀️ Light' : '🌙 Dark';
+}
+
+function toggleTheme() {
+    isDark = !isDark;
+    localStorage.setItem('arcadia-theme', isDark ? 'dark' : 'light');
+    applyTheme();
+}
+
+applyTheme();
+</script>
 </body>
 </html>
