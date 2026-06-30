@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&display=swap" rel="stylesheet">
     <style>
-        body { margin: 0; padding: 0; overflow: hidden; font-family: 'Ubuntu', sans-serif; }
+        body { margin: 0; padding: 0; overflow: hidden; font-family: 'Ubuntu', sans-serif; background-color: #000000; }
         canvas { display: block; background-color: #000000; }
         #gameOverContainer, #titleScreen {
             display: none;
@@ -57,12 +57,22 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+// --- FIX #3: fixed logical resolution, rendered at native pixel density ---
+// All gameplay math (positions, hitboxes, speeds, spawn locations) happens
+// in a fixed GAME_WIDTH x GAME_HEIGHT logical coordinate space - this is
+// what keeps the game fair regardless of monitor. GAME_WIDTH/GAME_HEIGHT
+// are NOT the same thing as canvas.width/canvas.height: the canvas backing
+// buffer is sized to the actual device's physical pixels so rendering stays
+// crisp, and a transform (set up in resizeCanvas/renderScale below) maps
+// logical coordinates onto those physical pixels. Never read canvas.width
+// or canvas.height for game logic - use GAME_WIDTH/GAME_HEIGHT instead.
+const GAME_WIDTH = 1600;
+const GAME_HEIGHT = 900;
+let renderScale = 1; // logical units -> physical pixels, recalculated on resize
 
 const playerSize = 50;
-let playerX = canvas.width / 2 - playerSize / 2;
-let playerY = canvas.height - playerSize - 10;
+let playerX = GAME_WIDTH / 2 - playerSize / 2;
+let playerY = GAME_HEIGHT - playerSize - 10;
 let currentDisplayHeight = playerSize;
 
 const playerSpeed = 5;
@@ -84,10 +94,36 @@ let obstacleSpeed = 3;
 let spawnRate = 0.02;
 
 let score = 0;
-let scoreInterval;
 let gameOver = false;
 let isPaused = false;
 let currentPlatform = null;
+
+// --- FIX #2: frame-rate independent timing ---
+// All movement below was originally written as "add a fixed amount every
+// frame," which implicitly assumed 60fps. lastTime/scoreAccumulator drive a
+// delta-time loop instead, so the game runs at the same real-world speed
+// whether it's rendering at 30fps or 180fps.
+let lastTime = null;
+let scoreAccumulator = 0;
+
+// FPS counter - toggle with F key, shown by default
+let showFps = true;
+let fpsSamples = [];
+let displayFps = 0;
+
+// Converts a "per frame at 60fps" rate into the correct multiplier for
+// however much real time actually passed this frame. 1.0 at exactly 60fps,
+// 0.5 at 120fps, 2.0 at 30fps, etc.
+function frameMultiplierFromDt(dt) {
+    return dt * 60;
+}
+
+// For lerp/ease-style "* 0.05 per frame" code: doing that naively at a
+// different frame rate changes how fast things converge. This keeps the
+// convergence rate constant in real time regardless of fps.
+function lerpFactor(ratePerFrame, frameMultiplier) {
+    return 1 - Math.pow(1 - ratePerFrame, frameMultiplier);
+}
 
 const keys = {}, keyDownState = {};
 const titleScreen = document.getElementById('titleScreen');
@@ -100,9 +136,28 @@ const pauseScreen = document.getElementById('pauseScreen');
 restartButton.addEventListener('click', restartGame);
 startButton.addEventListener('click', restartGame);
 
+// Sizes the canvas's actual pixel buffer to match the real device resolution
+// (accounting for devicePixelRatio so it's crisp on high-DPI screens too),
+// while keeping the letterboxed display area locked to the GAME_WIDTH x
+// GAME_HEIGHT aspect ratio. renderScale is then used once per frame to map
+// the fixed logical coordinate space onto however many physical pixels that
+// works out to - so gameplay stays identical across devices, but nothing
+// gets stretched/blurred the way CSS-scaling a small canvas would.
 function resizeCanvas() {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
+    const scale = Math.min(window.innerWidth / GAME_WIDTH, window.innerHeight / GAME_HEIGHT);
+    const displayWidth = Math.round(GAME_WIDTH * scale);
+    const displayHeight = Math.round(GAME_HEIGHT * scale);
+    const dpr = window.devicePixelRatio || 1;
+
+    canvas.style.width = displayWidth + 'px';
+    canvas.style.height = displayHeight + 'px';
+    canvas.style.position = 'absolute';
+    canvas.style.left = Math.round((window.innerWidth - displayWidth) / 2) + 'px';
+    canvas.style.top = Math.round((window.innerHeight - displayHeight) / 2) + 'px';
+
+    canvas.width = Math.round(displayWidth * dpr);
+    canvas.height = Math.round(displayHeight * dpr);
+    renderScale = scale * dpr;
 }
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
@@ -119,7 +174,7 @@ window.addEventListener('keydown', (e) => {
                 dashReady = false;
                 dashCooldownTimer = dashCooldownDuration;
                 setTimeout(() => dashReady = true, dashCooldownDuration);
-                if (playerY < canvas.height - playerSize - 10) dashJumpAvailable = true;
+                if (playerY < GAME_HEIGHT - playerSize - 10) dashJumpAvailable = true;
             }
             lastKeyPressTime[key] = now;
         }
@@ -144,10 +199,15 @@ window.addEventListener('keyup', (e) => {
     keyDownState[e.key] = false;
 });
 
+// --- FIX #1: pause stops everything, including score ---
+// Resetting lastTime to null on resume means the next frame just resyncs
+// the clock instead of computing a huge dt from however long the game sat
+// paused (which would otherwise yank the player/obstacles forward).
 function togglePause() {
   if (isPaused) {
     isPaused = false;
     pauseScreen.style.display = 'none';
+    lastTime = null;
     requestAnimationFrame(gameLoop);
   } else {
     isPaused = true;
@@ -156,6 +216,7 @@ function togglePause() {
 }
 document.addEventListener('keydown', (e) => {
   if (e.key === 'p' || e.key === 'Escape') togglePause();
+  if (e.key === 'f' || e.key === 'F') showFps = !showFps;
 });
 
 // Collision helpers unchanged
@@ -189,11 +250,12 @@ function rectTriangleCollision(rect, tri) {
     return false;
 }
 
-// Drawing functions unchanged
-function drawPlayer() {
+// Drawing functions - now take frameMultiplier so smoothing/easing stays
+// consistent regardless of frame rate
+function drawPlayer(frameMultiplier) {
     ctx.fillStyle = '#00ff00';
     const targetHeight = (keys['ArrowDown'] || keys['s']) ? playerSize / 2 : playerSize;
-    currentDisplayHeight += (targetHeight - currentDisplayHeight) * 0.5;
+    currentDisplayHeight += (targetHeight - currentDisplayHeight) * lerpFactor(0.5, frameMultiplier);
     ctx.fillRect(playerX, playerY + (playerSize - currentDisplayHeight), playerSize, currentDisplayHeight);
 }
 function drawObstacles() {
@@ -212,6 +274,14 @@ function drawScore() {
     ctx.font = '24px Ubuntu';
     ctx.fillText('Score: ' + score, 20, 30);
 }
+function drawFpsCounter() {
+    if (!showFps) return;
+    ctx.fillStyle = 'lime';
+    ctx.font = '16px monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(`${displayFps.toFixed(0)} FPS`, GAME_WIDTH - 20, 30);
+    ctx.textAlign = 'left';
+}
 function drawDashCooldownBar() {
     if (dashCooldownTimer > 0) {
         const barWidth = playerSize, barHeight = 5;
@@ -224,21 +294,21 @@ function drawDashCooldownBar() {
     }
 }
 
-// Obstacles unchanged
+// Obstacles
 function generateObstacle() {
-    const x = Math.random() * (canvas.width - 50);
+    const x = Math.random() * (GAME_WIDTH - 50);
     const type = Math.random() < 0.15 ? 'purple' : 'red';
     obstacles.push({ x, y: -50, type, vy: obstacleSpeed });
 }
-function moveObstacles() {
+function moveObstacles(frameMultiplier) {
     for (let i = obstacles.length - 1; i >= 0; i--) {
         const obstacle = obstacles[i];
         if (obstacle.type === 'purple') {
             const playerCenterX = playerX + playerSize / 2;
             const targetX = playerCenterX - 25;
-            obstacle.x += (targetX - obstacle.x) * 0.05;
+            obstacle.x += (targetX - obstacle.x) * lerpFactor(0.05, frameMultiplier);
         }
-        obstacle.y += obstacle.vy;
+        obstacle.y += obstacle.vy * frameMultiplier;
 
         // Triangle points
         const tri = [
@@ -282,21 +352,21 @@ function moveObstacles() {
         }
 
         // Remove offscreen
-        if (obstacle.y > canvas.height + 60) {
+        if (obstacle.y > GAME_HEIGHT + 60) {
             if (currentPlatform === obstacle) currentPlatform = null;
             obstacles.splice(i, 1);
         }
     }
 }
 
-function updatePlayerPosition() {
+function updatePlayerPosition(frameMultiplier) {
     if (dashTimer > 0) {
-        playerX += dashDirection * dashSpeed;
-        dashTimer--;
+        playerX += dashDirection * dashSpeed * frameMultiplier;
+        dashTimer -= frameMultiplier;
         trail.push({ x: playerX, y: playerY, alpha: 1.0 });
     } else {
-        if (keys['ArrowLeft'] || keys['a']) playerX -= playerSpeed;
-        if (keys['ArrowRight'] || keys['d']) playerX += playerSpeed;
+        if (keys['ArrowLeft'] || keys['a']) playerX -= playerSpeed * frameMultiplier;
+        if (keys['ArrowRight'] || keys['d']) playerX += playerSpeed * frameMultiplier;
     }
 
     if (isJumping && (keys['ArrowDown'] || keys['s'])) jumpCount = 0;
@@ -314,14 +384,14 @@ function updatePlayerPosition() {
     if (currentPlatform) {
         playerY = currentPlatform.y - displayHeight;
     } else {
-        playerY += jumpVelocity;
+        playerY += jumpVelocity * frameMultiplier;
         let gravityModifier = 1;
         if (keys['ArrowUp'] || keys['w']) gravityModifier = keys['ArrowDown'] || keys['s'] ? 1 : 0.4;
         else if (keys['ArrowDown'] || keys['s']) gravityModifier = 0.6;
-        jumpVelocity += gravity * gravityModifier;
+        jumpVelocity += gravity * gravityModifier * frameMultiplier;
 
-        if (playerY >= canvas.height - playerSize - 10) {
-            playerY = canvas.height - playerSize - 10;
+        if (playerY >= GAME_HEIGHT - playerSize - 10) {
+            playerY = GAME_HEIGHT - playerSize - 10;
             isJumping = false;
             jumpCount = 0;
             dashJumpAvailable = false;
@@ -336,18 +406,16 @@ function updatePlayerPosition() {
     }
 
     if (playerX < 0) playerX = 0;
-    if (playerX > canvas.width - playerSize) playerX = canvas.width - playerSize;
-    if (playerY > canvas.height - playerSize - 10) playerY = canvas.height - playerSize - 10;
+    if (playerX > GAME_WIDTH - playerSize) playerX = GAME_WIDTH - playerSize;
+    if (playerY > GAME_HEIGHT - playerSize - 10) playerY = GAME_HEIGHT - playerSize - 10;
 }
 
-
-
-// Disco, trail, dash preview unchanged
-function handleDiscoMode() {
+// Disco, trail, dash preview
+function handleDiscoMode(frameMultiplier) {
     if (discoMode) {
-        discoHue = (discoHue + 1) % 360;
+        discoHue = (discoHue + frameMultiplier) % 360;
         ctx.fillStyle = `hsla(${discoHue}, 100%, 50%, 0.2)`;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
         const now = Date.now();
         if (crouchSpamTimes.length < 5 || now - crouchSpamTimes[crouchSpamTimes.length - 1] > 500) {
             discoMode = false;
@@ -355,11 +423,11 @@ function handleDiscoMode() {
         }
     }
 }
-function drawTrail() {
+function drawTrail(frameMultiplier) {
     for (let t of trail) {
-        ctx.fillStyle = `rgba(0, 255, 0, ${t.alpha})`;
+        ctx.fillStyle = `rgba(0, 255, 0, ${Math.max(t.alpha, 0)})`;
         ctx.fillRect(t.x, t.y + (playerSize - currentDisplayHeight), playerSize, currentDisplayHeight);
-        t.alpha -= 0.05;
+        t.alpha -= 0.05 * frameMultiplier;
     }
     trail = trail.filter(t => t.alpha > 0);
 }
@@ -375,56 +443,92 @@ function drawDashPreview() {
     }
 }
 
-// Game flow unchanged
+// Game flow
 function showGameOverScreen() {
     finalScoreText.textContent = 'Final Score: ' + score;
     gameOverContainer.style.display = 'block';
 }
 function restartGame() {
-    clearInterval(scoreInterval);
     gameOver = false;
     score = 0;
-    playerX = canvas.width / 2 - playerSize / 2;
-    playerY = canvas.height - playerSize - 10;
+    scoreAccumulator = 0;
+    lastTime = null;
+    playerX = GAME_WIDTH / 2 - playerSize / 2;
+    playerY = GAME_HEIGHT - playerSize - 10;
     obstacles = [];
     obstacleSpeed = 3;
     spawnRate = 0.02;
     dashCooldownTimer = 0;
+    dashTimer = 0;
     currentPlatform = null;
     gameOverContainer.style.display = 'none';
     titleScreen.style.display = 'none';
-    startScoring();
-    gameLoop();
+    requestAnimationFrame(gameLoop);
 }
-function startScoring() {
-    scoreInterval = setInterval(() => {
-        score++;
-        if (score % 10 === 0) {
-            spawnRate += 0.001;
-            obstacleSpeed += 0.05;
-        }
-    }, 1000);
-}
-function gameLoop() {
+
+function gameLoop(timestamp) {
     if (gameOver) {
-        clearInterval(scoreInterval);
         showGameOverScreen();
         return;
     }
     if (isPaused) return;
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    handleDiscoMode();
-    drawTrail();
-    drawPlayer();
+    // First frame after start/resume: just record the timestamp, don't
+    // simulate anything yet (avoids a fake huge dt on the very first tick).
+    if (lastTime === null) {
+        lastTime = timestamp;
+        requestAnimationFrame(gameLoop);
+        return;
+    }
+
+    let dt = (timestamp - lastTime) / 1000; // seconds elapsed since last frame
+    lastTime = timestamp;
+    // Clamp dt so tab-switches/stutters can't cause a giant teleport/spawn-burst
+    dt = Math.min(Math.max(dt, 0), 0.1);
+    const frameMultiplier = frameMultiplierFromDt(dt);
+
+    // Rolling average so the FPS readout doesn't flicker every single frame
+    fpsSamples.push(dt > 0 ? 1 / dt : 0);
+    if (fpsSamples.length > 30) fpsSamples.shift();
+    displayFps = fpsSamples.reduce((a, b) => a + b, 0) / fpsSamples.length;
+
+    // Score now advances based on real elapsed time accumulated only while
+    // this loop is actually ticking - since the loop returns early while
+    // isPaused, score correctly stops increasing when paused.
+    scoreAccumulator += dt;
+    while (scoreAccumulator >= 1) {
+        scoreAccumulator -= 1;
+        score++;
+        if (score % 10 === 0) {
+            spawnRate += 0.001;
+            obstacleSpeed += 0.05;
+        }
+    }
+
+    // Map the fixed logical coordinate space onto the actual physical pixel
+    // buffer (set up in resizeCanvas). Everything drawn below uses
+    // GAME_WIDTH/GAME_HEIGHT-relative coordinates and renders crisply at
+    // whatever the device's real resolution is.
+    ctx.setTransform(renderScale, 0, 0, renderScale, 0, 0);
+    ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+    handleDiscoMode(frameMultiplier);
+    drawTrail(frameMultiplier);
+    drawPlayer(frameMultiplier);
     drawDashPreview();
-    moveObstacles();
+    moveObstacles(frameMultiplier);
     drawObstacles();
     drawScore();
+    drawFpsCounter();
     drawDashCooldownBar();
-    updatePlayerPosition();
-    if (dashCooldownTimer > 0) dashCooldownTimer -= 16;
-    if (Math.random() < spawnRate) generateObstacle();
+    updatePlayerPosition(frameMultiplier);
+
+    if (dashCooldownTimer > 0) dashCooldownTimer -= dt * 1000;
+
+    // Spawn probability converted so the expected number of spawns per
+    // second stays constant regardless of frame rate
+    const spawnChance = 1 - Math.pow(1 - spawnRate, frameMultiplier);
+    if (Math.random() < spawnChance) generateObstacle();
+
     requestAnimationFrame(gameLoop);
 }
 function showTitleScreen() {
