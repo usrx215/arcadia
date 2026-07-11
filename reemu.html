@@ -23,7 +23,7 @@ html,body { height:100%; margin:0; font-family:sans-serif; background:var(--bg);
 label { font-size:14px; display:flex; gap:8px; align-items:center; }
 .status-text { font-size:14px; color:#aaa; margin-left:auto; }
 
-#btn-patcher {
+#btn-patcher, #btn-games {
   background: transparent;
   border: 1.5px solid var(--accent);
   color: var(--accent);
@@ -35,7 +35,7 @@ label { font-size:14px; display:flex; gap:8px; align-items:center; }
   transition: background .15s, color .15s;
   white-space: nowrap;
 }
-#btn-patcher:hover { background: var(--accent); color: #111; }
+#btn-patcher:hover, #btn-games:hover { background: var(--accent); color: #111; }
 
 /* game area */
 #game {
@@ -213,6 +213,192 @@ label { font-size:14px; display:flex; gap:8px; align-items:center; }
 .p-guide a:hover { text-decoration: underline; }
 .p-guide ol, .p-guide ul { padding-left: 18px; margin: 6px 0; }
 .p-guide li { margin-bottom: 3px; }
+
+#games-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.72);
+  z-index: 9999;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  box-sizing: border-box;
+}
+#games-overlay.open { display: flex; }
+
+#games-modal {
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 10px;
+  width: 100%;
+  max-width: 900px;
+  height: 80vh;
+  max-height: 640px;
+  padding: 24px;
+  box-sizing: border-box;
+  position: relative;
+  color: #e0e0e0;
+  font-family: sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+
+#games-modal h2 {
+  margin: 0 0 16px;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: .03em;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+#games-close {
+  position: absolute;
+  top: 16px; right: 18px;
+  background: transparent;
+  border: none;
+  color: #888;
+  font-size: 22px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+  transition: color .15s;
+}
+#games-close:hover { color: #fff; }
+
+#games-body {
+  flex: 1;
+  display: flex;
+  gap: 14px;
+  min-height: 0;
+}
+
+#games-categories {
+  width: 170px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.g-cat-btn {
+  text-align: left;
+  background: #242424;
+  border: 1px solid #333;
+  color: #ccc;
+  font-family: sans-serif;
+  font-size: 13px;
+  padding: 9px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.g-cat-btn:hover { border-color: var(--accent); color: #fff; }
+.g-cat-btn.active { background: var(--accent); color: #111; border-color: var(--accent); font-weight: 600; }
+.g-cat-count { font-size: 11px; opacity: .7; }
+
+#games-list-wrap {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+#games-search {
+  width: 100%;
+  box-sizing: border-box;
+  background: #111;
+  border: 1px solid #333;
+  color: #eee;
+  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  margin-bottom: 10px;
+  font-family: sans-serif;
+}
+#games-search:focus { outline: none; border-color: var(--accent); }
+
+#games-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px,1fr));
+  gap: 8px;
+}
+
+.g-game-btn {
+  background: #242424;
+  border: 1px solid #333;
+  color: #ddd;
+  font-family: sans-serif;
+  font-size: 12.5px;
+  padding: 10px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  transition: background .15s, border-color .15s;
+  line-height: 1.4;
+  word-break: break-word;
+}
+.g-game-btn:hover { border-color: var(--accent); background: #1d2e2c; }
+
+.g-folder-btn {
+  background: #242424;
+  border: 1px solid #3a3a3a;
+  color: #eee;
+  font-family: sans-serif;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 10px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  transition: background .15s, border-color .15s;
+  line-height: 1.4;
+  word-break: break-word;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.g-folder-btn:hover { border-color: var(--accent); background: #1d2e2c; }
+.g-folder-btn .g-folder-icon { opacity: .8; }
+
+#games-breadcrumb {
+  font-size: 12px;
+  color: #888;
+  margin-bottom: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+#games-breadcrumb button {
+  background: none;
+  border: none;
+  color: #aac4ff;
+  font-family: sans-serif;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+}
+#games-breadcrumb button:hover { text-decoration: underline; }
+#games-breadcrumb button:disabled {
+  color: var(--accent);
+  cursor: default;
+  text-decoration: none;
+}
+#games-breadcrumb .g-crumb-sep { color: #555; }
+
+#games-status {
+  font-size: 12px;
+  color: #888;
+  padding: 20px 4px;
+}
+#games-status.error { color: #ff7777; }
 </style>
 </head>
 <body>
@@ -253,6 +439,7 @@ label { font-size:14px; display:flex; gap:8px; align-items:center; }
       accept=".nes,.smc,.sfc,.snes,.gb,.gbc,.gba,.vb,.nds,.n64,.z64,.v64,.iso,.bin,.gen,.md,.sms,.gg,.a26,.a78,.a52,.pce,.cso,.pbp,.swf" />
   </label>
 
+  <button id="btn-games" onclick="openGames()">&#127918; Games</button>
   <button id="btn-patcher" onclick="openPatcher()">&#9881; ROM Patcher</button>
 
   <span class="status-text" id="status"></span>
@@ -260,7 +447,28 @@ label { font-size:14px; display:flex; gap:8px; align-items:center; }
 
 <div id="game"></div>
 
-<!-- patcher -->
+<!-- would you rather have unlimited bacon but no games or games, unlimited games, but no games -->
+<div id="games-overlay" onclick="gamesOverlayClick(event)">
+  <div id="games-modal">
+    <button id="games-close" onclick="closeGames()" title="Close">&times;</button>
+    <h2>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 12h4M8 10v4"/><circle cx="16" cy="11" r="1"/><circle cx="18" cy="13" r="1"/>
+      </svg>
+      Game Library
+    </h2>
+    <div id="games-body">
+      <div id="games-categories"></div>
+      <div id="games-list-wrap">
+        <div id="games-breadcrumb"></div>
+        <input type="text" id="games-search" placeholder="Search games..." oninput="g_render_grid()">
+        <div id="games-grid"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- rom patcher modal -->
 <div id="patcher-overlay" onclick="overlayClick(event)">
   <div id="patcher-modal">
     <button id="patcher-close" onclick="closePatcher()" title="Close">&times;</button>
@@ -274,7 +482,6 @@ label { font-size:14px; display:flex; gap:8px; align-items:center; }
 
     <div class="p-panels">
 
-      <!-- ROM panel -->
       <div class="p-panel rom" id="p-panel-rom"
            ondrop="p_drop_rom(event)" ondragover="p_dragover(event,'p-panel-rom')"
            ondragenter="p_dragenter(event,'p-panel-rom')" ondragleave="p_dragleave(event,'p-panel-rom')">
@@ -300,7 +507,6 @@ label { font-size:14px; display:flex; gap:8px; align-items:center; }
         <div class="p-info" id="p-info-rom">No ROM loaded.</div>
       </div>
 
-      <!-- IPS panel -->
       <div class="p-panel ips" id="p-panel-ips"
            ondrop="p_drop_ips(event)" ondragover="p_dragover(event,'p-panel-ips')"
            ondragenter="p_dragenter(event,'p-panel-ips')" ondragleave="p_dragleave(event,'p-panel-ips')">
@@ -311,7 +517,6 @@ label { font-size:14px; display:flex; gap:8px; align-items:center; }
         <div class="p-info" id="p-info-ips">No patch loaded.</div>
       </div>
 
-      <!-- Result panel -->
       <div class="p-panel out">
         <div class="p-panel-title">Result</div>
         <button class="p-btn out" id="p-dl-btn" onclick="p_download()" disabled>Download</button>
@@ -333,6 +538,7 @@ label { font-size:14px; display:flex; gap:8px; align-items:center; }
         <li><a href="https://www.romhacking.net/" target="_blank">ROMhacking.net</a> — large patch repository</li>
         <li><a href="https://www.fantasyanime.com/patching" target="_blank">FantasyAnime patching tutorial</a></li>
         <li><a href="https://www.romhacking.net/utilities/1040/" target="_blank">Floating IPS</a> — desktop patcher</li>
+        <li><a href="https://bbbradsmith.github.io/ipstool/" target="_blank">The original tool I used for this thingy</a></li>
       </ul>
     </div>
   </div>
@@ -425,12 +631,19 @@ function startFlash(file, arrayBuffer) {
   statusText.textContent = "Playing (Flash): " + file.name;
 }
 
+// Core loader now split so it can be fed either a browser File object
+// (from the file input / drag-drop) or raw bytes fetched from elsewhere
+// (from the GitHub games library below).
+function handleGameData(name, arrayBuffer) {
+  const ext = getExtension(name);
+  if (ext === "swf") startFlash({ name }, arrayBuffer);
+  else startEmulator({ name }, arrayBuffer);
+}
+
 async function handleFile(file) {
   if (!file) return;
-  const ext = getExtension(file.name);
   const arrayBuffer = await file.arrayBuffer();
-  if (ext === "swf") startFlash(file, arrayBuffer);
-  else startEmulator(file, arrayBuffer);
+  handleGameData(file.name, arrayBuffer);
 }
 
 fileInput.addEventListener("change", () => handleFile(fileInput.files[0]));
@@ -442,7 +655,9 @@ function setupDragDrop(target) {
 setupDragDrop(document.getElementById("game"));
 
 document.addEventListener("keydown", e => {
-  if (e.key === "Escape" && !document.getElementById("patcher-overlay").classList.contains("open")) {
+  if (e.key === "Escape"
+      && !document.getElementById("patcher-overlay").classList.contains("open")
+      && !document.getElementById("games-overlay").classList.contains("open")) {
     clearGame(); fileInput.value = "";
   }
 });
@@ -707,6 +922,261 @@ function p_tip(btn){
 }
 
 p_rebuild();
+
+/* ================= games library (GitHub-backed) ================= */
+
+const GH_OWNER = "usrx215";
+const GH_REPO = "arcadia";
+const GH_BRANCH = "main";
+const GH_GAMES_PATH = "reemugames";
+
+// Friendly labels for top-level folder names. Anything not listed here
+// just gets Capitalized as a fallback, so new folders show up automatically.
+const G_CATEGORY_LABELS = {
+  flash: "Flash",
+  gb: "Game Boy / Color",
+  nes: "NES",
+  snes: "SNES",
+  gba: "Game Boy Advance",
+  n64: "Nintendo 64",
+  nds: "Nintendo DS",
+  psx: "PlayStation",
+  psp: "PSP",
+  genesis: "Sega Genesis",
+  sms: "Master System",
+  atari: "Atari"
+};
+
+let g_games_tree = null;   // raw list of path strings under GH_GAMES_PATH
+let g_games_by_cat = null; // { categoryKey: TreeNode }  TreeNode = { folders: {name: TreeNode}, games: [{display, path, ext}] }
+let g_games_cat_order = [];
+let g_active_cat = null;
+let g_expanded = new Set(); // relative folder paths (e.g. "Duck Life" or "Duck Life/Extras") that are expanded
+let g_games_loading = false;
+let g_games_error = null;
+
+function g_category_label(key) {
+  if (G_CATEGORY_LABELS[key]) return G_CATEGORY_LABELS[key];
+  return key.charAt(0).toUpperCase() + key.slice(1);
+}
+
+function g_strip_ext(name) {
+  const i = name.lastIndexOf(".");
+  return i === -1 ? name : name.substring(0, i);
+}
+
+function g_esc(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function g_new_node() { return { folders: {}, games: [] }; }
+
+function g_add_to_tree(node, parts, path, ext) {
+  if (parts.length === 1) {
+    node.games.push({ display: g_strip_ext(parts[0]), path, ext });
+    return;
+  }
+  const sub = parts[0];
+  if (!node.folders[sub]) node.folders[sub] = g_new_node();
+  g_add_to_tree(node.folders[sub], parts.slice(1), path, ext);
+}
+
+function g_sort_tree(node) {
+  node.games.sort((a, b) => a.display.localeCompare(b.display));
+  for (const k in node.folders) g_sort_tree(node.folders[k]);
+}
+
+function g_build_categories(paths) {
+  const cats = {};
+  const prefix = GH_GAMES_PATH + "/";
+  for (const p of paths) {
+    if (!p.startsWith(prefix)) continue;
+    const rel = p.substring(prefix.length);
+    const parts = rel.split("/");
+    if (parts.length < 2) continue; // stray file directly in reemugames/
+    const catKey = parts[0];
+    const filename = parts[parts.length - 1];
+    const ext = filename.includes(".") ? filename.split(".").pop().toLowerCase() : "";
+    if (!cats[catKey]) cats[catKey] = g_new_node();
+    g_add_to_tree(cats[catKey], parts.slice(1), p, ext);
+  }
+  for (const k in cats) g_sort_tree(cats[k]);
+  return cats;
+}
+
+// Count all games nested under a node, for count badges.
+function g_count_games(node) {
+  let n = node.games.length;
+  for (const k in node.folders) n += g_count_games(node.folders[k]);
+  return n;
+}
+
+// Recursively collect every game under a node, prefixing display names with
+// their subfolder path. Used only for search, which ignores folder structure.
+function g_collect_games(node, prefix) {
+  let out = node.games.map(g => ({ display: prefix ? prefix + " — " + g.display : g.display, path: g.path }));
+  for (const name in node.folders) {
+    out = out.concat(g_collect_games(node.folders[name], prefix ? prefix + " / " + name : name));
+  }
+  return out;
+}
+
+async function g_fetch_tree() {
+  const url = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/git/trees/${GH_BRANCH}?recursive=1`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    if (res.status === 403) throw new Error("GitHub API rate limit hit — try again in a bit.");
+    throw new Error("GitHub API error (" + res.status + ")");
+  }
+  const data = await res.json();
+  if (!data.tree) throw new Error("Unexpected response from GitHub API.");
+  return data.tree.filter(item => item.type === "blob").map(item => item.path);
+}
+
+async function g_ensure_loaded() {
+  if (g_games_by_cat || g_games_loading) return;
+  g_games_loading = true;
+  g_games_error = null;
+  g_render_categories();
+  try {
+    const paths = await g_fetch_tree();
+    g_games_by_cat = g_build_categories(paths);
+    g_games_cat_order = Object.keys(g_games_by_cat).sort((a, b) =>
+      g_category_label(a).localeCompare(g_category_label(b))
+    );
+    g_active_cat = g_games_cat_order[0] || null;
+    g_expanded = new Set();
+  } catch (err) {
+    g_games_error = err.message || String(err);
+  } finally {
+    g_games_loading = false;
+    g_render_categories();
+    g_render_grid();
+  }
+}
+
+function g_render_categories() {
+  const el = document.getElementById("games-categories");
+  if (g_games_loading) {
+    el.innerHTML = '<div id="games-status">Loading game list from GitHub&hellip;</div>';
+    return;
+  }
+  if (g_games_error) {
+    el.innerHTML = '<div id="games-status" class="error">' + g_esc(g_games_error) + '</div>';
+    return;
+  }
+  if (!g_games_cat_order.length) {
+    el.innerHTML = '<div id="games-status">No games found.</div>';
+    return;
+  }
+  el.innerHTML = g_games_cat_order.map(key => {
+    const count = g_count_games(g_games_by_cat[key]);
+    const active = key === g_active_cat ? " active" : "";
+    return `<button type="button" class="g-cat-btn${active}" data-cat="${g_esc(key)}">` +
+      `<span>${g_esc(g_category_label(key))}</span><span class="g-cat-count">${count}</span></button>`;
+  }).join("");
+}
+
+function g_select_cat(key) {
+  g_active_cat = key;
+  g_expanded = new Set();
+  document.getElementById("games-search").value = "";
+  g_render_categories();
+  g_render_grid();
+}
+
+function g_toggle_folder(path) {
+  if (g_expanded.has(path)) g_expanded.delete(path);
+  else g_expanded.add(path);
+  g_render_grid();
+}
+
+// Renders one tree level (and, recursively, any expanded children) as HTML.
+function g_render_node_html(node, depth, pathPrefix) {
+  const indent = depth * 18;
+  let html = "";
+  const folderNames = Object.keys(node.folders).sort((a, b) => a.localeCompare(b));
+  for (const name of folderNames) {
+    const fullPath = pathPrefix ? pathPrefix + "/" + name : name;
+    const isOpen = g_expanded.has(fullPath);
+    const count = g_count_games(node.folders[name]);
+    html += `<button type="button" class="g-folder-btn" style="margin-left:${indent}px" data-folder="${g_esc(fullPath)}">` +
+      `<span class="g-folder-icon">${isOpen ? "&#128194;" : "&#128193;"}</span>` +
+      `<span>${g_esc(name)}</span><span class="g-cat-count" style="margin-left:auto">${count}</span></button>`;
+    if (isOpen) html += g_render_node_html(node.folders[name], depth + 1, fullPath);
+  }
+  for (const g of node.games) {
+    html += `<button type="button" class="g-game-btn" style="margin-left:${indent}px" data-path="${g_esc(g.path)}">${g_esc(g.display)}</button>`;
+  }
+  return html;
+}
+
+function g_render_grid() {
+  const grid = document.getElementById("games-grid");
+  const crumb = document.getElementById("games-breadcrumb");
+  if (g_games_loading || g_games_error || !g_active_cat) {
+    grid.innerHTML = "";
+    crumb.innerHTML = "";
+    return;
+  }
+  const catNode = g_games_by_cat[g_active_cat];
+  crumb.innerHTML = `<button type="button" disabled>${g_esc(g_category_label(g_active_cat))}</button>`;
+
+  const search = document.getElementById("games-search").value.trim().toLowerCase();
+  if (search) {
+    const matches = g_collect_games(catNode, "").filter(g => g.display.toLowerCase().includes(search));
+    if (!matches.length) { grid.innerHTML = '<div id="games-status">No matching games.</div>'; return; }
+    grid.innerHTML = matches.map(g =>
+      `<button type="button" class="g-game-btn" data-path="${g_esc(g.path)}">${g_esc(g.display)}</button>`
+    ).join("");
+    return;
+  }
+
+  const html = g_render_node_html(catNode, 0, "");
+  grid.innerHTML = html || '<div id="games-status">No games in this category.</div>';
+}
+
+async function g_play(path, btn) {
+  const original = btn ? btn.textContent : null;
+  if (btn) { btn.disabled = true; btn.textContent = "Loading…"; }
+  statusText.textContent = "Downloading " + path.split("/").pop() + "…";
+  try {
+    const rawUrl = "https://raw.githubusercontent.com/" + GH_OWNER + "/" + GH_REPO + "/" + GH_BRANCH + "/" +
+      path.split("/").map(encodeURIComponent).join("/");
+    const res = await fetch(rawUrl);
+    if (!res.ok) throw new Error("Download failed (" + res.status + ")");
+    const buf = await res.arrayBuffer();
+    const filename = path.split("/").pop();
+    closeGames();
+    handleGameData(filename, buf);
+  } catch (err) {
+    statusText.textContent = "Error loading game: " + (err.message || err);
+    if (btn) { btn.disabled = false; btn.textContent = original; }
+  }
+}
+
+function openGames() {
+  document.getElementById("games-overlay").classList.add("open");
+  g_ensure_loaded();
+}
+function closeGames() { document.getElementById("games-overlay").classList.remove("open"); }
+function gamesOverlayClick(e) { if (e.target === document.getElementById("games-overlay")) closeGames(); }
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeGames(); });
+
+// Event delegation: buttons are re-rendered via innerHTML on every navigation,
+// so listeners are attached once to the stable container elements rather than
+// per-button, and dynamic values are read from data-* attributes instead of
+// being interpolated into onclick="" strings (which breaks on quotes/specials).
+document.getElementById("games-categories").addEventListener("click", e => {
+  const btn = e.target.closest(".g-cat-btn");
+  if (btn) g_select_cat(btn.dataset.cat);
+});
+document.getElementById("games-grid").addEventListener("click", e => {
+  const folderBtn = e.target.closest(".g-folder-btn");
+  if (folderBtn) { g_toggle_folder(folderBtn.dataset.folder); return; }
+  const gameBtn = e.target.closest(".g-game-btn");
+  if (gameBtn) { g_play(gameBtn.dataset.path, gameBtn); return; }
+});
 </script>
 
 </body>
