@@ -12,11 +12,12 @@
         .game-container { position: relative; width: 90vw; max-width: 500px; aspect-ratio: 1; background-color: var(--board-bg); border-radius: 12px; padding: 10px; border: 4px solid #465f75; padding-right: 35px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
         .board { position: relative; width: 100%; height: 100%; background-image: linear-gradient(#2c3e50 2px, transparent 2px), linear-gradient(90deg, #2c3e50 2px, transparent 2px); background-size: 16.66% 16.66%; background-position: -1px -1px; border-radius: 8px; overflow: hidden; }
         .exit-gate { position: absolute; right: -30px; top: 33.33%; height: 16.66%; width: 30px; background: repeating-linear-gradient(45deg, #27ae60, #27ae60 5px, #2ecc71 5px, #2ecc71 10px); border-radius: 0 6px 6px 0; box-shadow: 0 0 10px #2ecc71; }
-        .block { position: absolute; border-radius: 6px; box-sizing: border-box; transition: transform 0.1s linear; z-index: 10; cursor: grab; border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 4px 6px rgba(0,0,0,0.3); display: flex; justify-content: center; align-items: center; }
+        .block { position: absolute; border-radius: 6px; box-sizing: border-box; transition: transform 0.1s linear; z-index: 10; cursor: grab; border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 4px 6px rgba(0,0,0,0.3); display: flex; justify-content: center; align-items: center; touch-action: none; }
         .block.hero { background: var(--hero-color); }
         .block.hero::after { content: '➔'; font-size: 1.5rem; color: #fff; animation: pulse 2s infinite; }
         @keyframes pulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
         .block.c1 { background: #3498db; } .block.c2 { background: #f1c40f; } .block.c3 { background: #9b59b6; } .block.c4 { background: #1abc9c; }
+        .block.selected { outline: 3px solid #fff; outline-offset: 2px; z-index: 11; }
         .controls { margin-top: 25px; display: flex; gap: 10px; }
         button { background: #34495e; color: #fff; border: 2px solid #576d7e; padding: 10px 20px; border-radius: 20px; cursor: pointer; font-weight: bold; transition: 0.2s; }
         button:hover { background: #465f75; transform: translateY(-2px); }
@@ -37,37 +38,49 @@
     </div>
 
 <script>
-    let levels = [
-        [{"id":"hero","type":"h","len":2,"r":2,"c":1,"color":"hero"},{"id":"b1770790521385","type":"v","len":3,"r":0,"c":5,"color":"c4"}],
-        [{"id":"hero","type":"h","len":2,"r":2,"c":0,"color":"hero"},{"id":"b1770790646594","type":"h","len":3,"r":0,"c":1,"color":"c4"},{"id":"b1770790655587","type":"v","len":2,"r":1,"c":3,"color":"c3"},{"id":"b1770790659437","type":"v","len":3,"r":3,"c":3,"color":"c2"}],
-        [{"id":"hero","type":"h","len":2,"r":2,"c":0,"color":"hero"},{"id":"b1771522927428","type":"h","len":3,"r":0,"c":0,"color":"c4"},{"id":"b1771522933241","type":"v","len":2,"r":1,"c":2,"color":"c2"},{"id":"b1771522934603","type":"v","len":2,"r":3,"c":2,"color":"c1"},{"id":"b1771522938986","type":"v","len":3,"r":0,"c":4,"color":"c3"}],
-        [{"id":"hero","type":"h","len":2,"r":2,"c":0,"color":"hero"},{"id":"b1771522986178","type":"h","len":3,"r":4,"c":1,"color":"c4"},{"id":"b1771522991058","type":"h","len":2,"r":3,"c":2,"color":"c2"},{"id":"b1771522994195","type":"v","len":3,"r":0,"c":3,"color":"c3"}],
-        [{"id":"hero","type":"h","len":2,"r":2,"c":0,"color":"hero"},{"id":"b1771523028295","type":"v","len":3,"r":0,"c":4,"color":"c3"},{"id":"b1771523033237","type":"h","len":3,"r":1,"c":1,"color":"c4"},{"id":"b1771523040998","type":"v","len":3,"r":2,"c":2,"color":"c2"},{"id":"b1771523045180","type":"v","len":2,"r":2,"c":3,"color":"c1"},{"id":"b1771523047138","type":"v","len":2,"r":4,"c":3,"color":"c3"}],
-        [{"id":"hero","type":"h","len":2,"r":2,"c":0,"color":"hero"},{"id":"b1771523080656","type":"h","len":2,"r":4,"c":1,"color":"c4"},{"id":"b1771523085554","type":"v","len":2,"r":2,"c":2,"color":"c3"},{"id":"b1771523086785","type":"v","len":2,"r":0,"c":2,"color":"c2"}],
-        [{"id":"hero","type":"h","len":2,"r":2,"c":0,"color":"hero"},{"id":"b1771523119087","type":"h","len":3,"r":0,"c":0,"color":"c4"},{"id":"b1771523134202","type":"v","len":2,"r":1,"c":2,"color":"c3"},{"id":"b1771523138009","type":"h","len":2,"r":4,"c":1,"color":"c1"}],
-        [{"id":"hero","type":"h","len":2,"r":2,"c":0,"color":"hero"},{"id":"b1771523168702","type":"v","len":3,"r":0,"c":5,"color":"c3"},{"id":"b1771523172516","type":"v","len":2,"r":0,"c":4,"color":"c1"},{"id":"b1771523176755","type":"v","len":2,"r":2,"c":2,"color":"c3"},{"id":"b1771523178288","type":"v","len":2,"r":4,"c":2,"color":"c2"},{"id":"b1771523184699","type":"h","len":2,"r":0,"c":1,"color":"c4"},{"id":"b1771523186494","type":"h","len":2,"r":1,"c":0,"color":"c2"},{"id":"b1771523187842","type":"h","len":2,"r":1,"c":2,"color":"c1"}],
-        [{"id":"hero","type":"h","len":2,"r":2,"c":3,"color":"hero"},{"id":"b1771523232491","type":"v","len":2,"r":2,"c":5,"color":"c3"},{"id":"b1771523241683","type":"h","len":2,"r":3,"c":1,"color":"c4"},{"id":"b1771523245509","type":"h","len":3,"r":4,"c":3,"color":"c4"},{"id":"b1771523247513","type":"h","len":2,"r":4,"c":1,"color":"c2"},{"id":"b1771523251053","type":"h","len":2,"r":1,"c":4,"color":"c1"},{"id":"b1771523259067","type":"h","len":3,"r":0,"c":3,"color":"c2"},{"id":"b1771523264216","type":"v","len":3,"r":0,"c":2,"color":"c3"},{"id":"b1771523269177","type":"v","len":2,"r":1,"c":0,"color":"c2"},{"id":"b1771523270457","type":"v","len":2,"r":3,"c":0,"color":"c1"}],
-        [{"id":"hero","type":"h","len":2,"r":2,"c":0,"color":"hero"},{"id":"b1771523336247","type":"h","len":2,"r":1,"c":4,"color":"c1"},{"id":"b1771523340250","type":"v","len":3,"r":2,"c":3,"color":"c3"},{"id":"b1771523344982","type":"v","len":2,"r":2,"c":5,"color":"c2"},{"id":"b1771523346166","type":"v","len":2,"r":4,"c":5,"color":"c1"},{"id":"b1771523352344","type":"h","len":2,"r":1,"c":2,"color":"c4"}],
-        [{"id":"hero","type":"h","len":2,"r":2,"c":0,"color":"hero"},{"id":"b1771523385355","type":"v","len":3,"r":0,"c":2,"color":"c3"},{"id":"b1771523391151","type":"h","len":3,"r":4,"c":0,"color":"c4"},{"id":"b1771523397308","type":"h","len":2,"r":5,"c":1,"color":"c2"},{"id":"b1771523402959","type":"v","len":2,"r":1,"c":3,"color":"c1"}],
-        [{"id":"hero","type":"h","len":2,"r":2,"c":3,"color":"hero"},{"id":"b1771523438203","type":"h","len":3,"r":3,"c":3,"color":"c4"},{"id":"b1771523441735","type":"h","len":3,"r":0,"c":1,"color":"c4"},{"id":"b1771523449938","type":"v","len":2,"r":0,"c":0,"color":"c3"},{"id":"b1771523455055","type":"v","len":2,"r":2,"c":0,"color":"c2"},{"id":"b1771523460968","type":"h","len":2,"r":1,"c":1,"color":"c1"},{"id":"b1771523464844","type":"h","len":2,"r":1,"c":3,"color":"c2"},{"id":"b1771523468047","type":"h","len":2,"r":0,"c":4,"color":"c1"},{"id":"b1771523470666","type":"v","len":2,"r":1,"c":5,"color":"c2"},{"id":"b1771523474659","type":"v","len":2,"r":2,"c":2,"color":"c3"},{"id":"b1771523476257","type":"v","len":2,"r":4,"c":2,"color":"c1"}],
-        [{"id":"hero","type":"h","len":2,"r":2,"c":0,"color":"hero"},{"id":"b1771523548643","type":"h","len":2,"r":3,"c":1,"color":"c4"},{"id":"b1771523552142","type":"h","len":2,"r":0,"c":3,"color":"c1"},{"id":"b1771523553189","type":"h","len":2,"r":1,"c":3,"color":"c2"},{"id":"b1771523558100","type":"v","len":2,"r":1,"c":2,"color":"c3"},{"id":"b1771523560456","type":"h","len":3,"r":0,"c":0,"color":"c4"},{"id":"b1771523565776","type":"v","len":2,"r":3,"c":0,"color":"c3"},{"id":"b1771523570533","type":"h","len":3,"r":5,"c":2,"color":"c4"},{"id":"b1771523581626","type":"v","len":2,"r":2,"c":3,"color":"c1"},{"id":"b1771523585572","type":"h","len":2,"r":5,"c":0,"color":"c2"}],
-        [{"id":"hero","type":"h","len":2,"r":2,"c":0,"color":"hero"},{"id":"b1771523772347","type":"h","len":3,"r":0,"c":0,"color":"c4"},{"id":"b1771523781439","type":"v","len":3,"r":0,"c":5,"color":"c3"},{"id":"b1771523787364","type":"h","len":2,"r":0,"c":3,"color":"c1"},{"id":"b1771523790606","type":"h","len":2,"r":3,"c":4,"color":"c2"},{"id":"b1771523796555","type":"v","len":2,"r":2,"c":3,"color":"c3"},{"id":"b1771523803214","type":"h","len":3,"r":4,"c":1,"color":"c1"},{"id":"b1771523805708","type":"h","len":3,"r":5,"c":1,"color":"c2"}],
-        [{"id":"hero","type":"h","len":2,"r":2,"c":0,"color":"hero"},{"id":"b1771523893215","type":"v","len":2,"r":0,"c":0,"color":"c3"},{"id":"b1771523896497","type":"v","len":2,"r":3,"c":0,"color":"c3"},{"id":"b1771523901020","type":"h","len":3,"r":3,"c":3,"color":"c4"},{"id":"b1771523905373","type":"h","len":2,"r":0,"c":1,"color":"c1"},{"id":"b1771523908308","type":"h","len":2,"r":0,"c":3,"color":"c2"},{"id":"b1771523911422","type":"h","len":2,"r":3,"c":1,"color":"c1"},{"id":"b1771523918401","type":"v","len":2,"r":1,"c":2,"color":"c2"}],
-        [{"id":"hero","type":"h","len":2,"r":2,"c":0,"color":"hero"},{"id":"b1771523969130","type":"h","len":3,"r":1,"c":2,"color":"c4"},{"id":"b1771523975462","type":"v","len":2,"r":1,"c":5,"color":"c3"},{"id":"b1771523980777","type":"v","len":2,"r":2,"c":4,"color":"c2"},{"id":"b1771523985499","type":"h","len":2,"r":4,"c":3,"color":"c1"}],
-        [{"id":"hero","type":"h","len":2,"r":2,"c":0,"color":"hero"},{"id":"b1771524031436","type":"h","len":3,"r":4,"c":2,"color":"c4"},{"id":"b1771524036729","type":"v","len":2,"r":2,"c":4,"color":"c2"},{"id":"b1771524038012","type":"v","len":2,"r":0,"c":4,"color":"c3"}],
-        [{"id":"hero","type":"h","len":2,"r":2,"c":0,"color":"hero"},{"id":"b1771524060839","type":"h","len":3,"r":4,"c":0,"color":"c4"},{"id":"b1771524064216","type":"v","len":3,"r":0,"c":2,"color":"c3"},{"id":"b1771524068098","type":"v","len":2,"r":1,"c":4,"color":"c1"}],
-        [{"id":"hero","type":"h","len":2,"r":2,"c":0,"color":"hero"},{"id":"b1771524105149","type":"v","len":2,"r":1,"c":4,"color":"c1"},{"id":"b1771524110083","type":"h","len":3,"r":0,"c":0,"color":"c4"},{"id":"b1771524112837","type":"h","len":2,"r":0,"c":3,"color":"c2"},{"id":"b1771524116997","type":"h","len":2,"r":3,"c":3,"color":"c2"},{"id":"b1771524124911","type":"v","len":2,"r":2,"c":2,"color":"c3"},{"id":"b1771524130761","type":"h","len":3,"r":5,"c":0,"color":"c1"}],
-        [{"id":"hero","type":"h","len":2,"r":2,"c":0,"color":"hero"},{"id":"b1771524160757","type":"v","len":2,"r":0,"c":3,"color":"c3"},{"id":"b1771524164259","type":"v","len":2,"r":2,"c":3,"color":"c1"},{"id":"b1771524174424","type":"h","len":2,"r":4,"c":2,"color":"c4"},{"id":"b1771524181348","type":"v","len":2,"r":1,"c":4,"color":"c2"},{"id":"b1771524182998","type":"v","len":2,"r":1,"c":5,"color":"c3"}],
-        
-    ];
+    // Levels are loaded from interlock-levels.txt (one level's JSON array
+    // per line) rather than embedded here, so this file stays small and the
+    // level list can be edited without touching the game code.
+    let levels = [];
 
-    let curIdx = 0, blocks = [], moves = 0, drag = false, active = null, start = {x:0, y:0}, acc = 0, cellSize = 0;
+    async function loadLevelsFromFile() {
+        try {
+            const res = await fetch('interlock-levels.txt');
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const text = await res.text();
+            levels = text.split('\n')
+                .map(line => line.trim())
+                .filter(line => line && !line.startsWith('#'))
+                .map(line => JSON.parse(line));
+            if (!levels.length) throw new Error('No levels found in file.');
+        } catch (err) {
+            console.error('Failed to load interlock-levels.txt:', err);
+            alert('Could not load interlock-levels.txt: ' + err.message +
+                '\n\nMake sure interlock-levels.txt is in the same folder and this page is loaded via http(s), not opened directly as a file.');
+            levels = [];
+        }
+    }
+
+
+    let curIdx = 0, blocks = [], moves = 0, cellSize = 0, locked = false;
+
+    // Mouse/pointer drag state
+    let drag = false, active = null, start = {x:0, y:0}, acc = 0, sessionMoved = false;
+
+    // Keyboard state
+    let selected = null;      // currently selected block (object reference from `blocks`)
+    let kbActiveKey = null;   // the arrow key currently "held" for the in-progress keyboard session
+    let kbSessionMoved = false;
+
     const board = document.getElementById('board'), lvlDisp = document.getElementById('lvl'), mvsDisp = document.getElementById('mvs'), win = document.getElementById('win');
 
     function loadLvl(idx) {
         if (!levels[idx]) return;
         curIdx = idx; blocks = JSON.parse(JSON.stringify(levels[idx])); moves = 0;
         lvlDisp.innerText = idx + 1; mvsDisp.innerText = 0; win.style.display = 'none';
+        locked = false; drag = false; active = null; sessionMoved = false;
+        kbActiveKey = null; kbSessionMoved = false;
+        selected = blocks.find(b => b.id === 'hero') || blocks[0] || null;
         render();
     }
 
@@ -75,26 +88,54 @@
         board.innerHTML = '';
         cellSize = board.clientWidth / 6;
         blocks.forEach(b => {
-            const el = document.createElement('div'); el.className = `block ${b.color}`; el.id = b.id;
+            const el = document.createElement('div'); el.className = `block ${b.color}` + (selected && b.id === selected.id ? ' selected' : ''); el.id = b.id;
             el.style.width = (b.type==='h' ? b.len*16.66 : 16.66)+'%';
             el.style.height = (b.type==='v' ? b.len*16.66 : 16.66)+'%';
             el.style.left = (b.c*16.66)+'%'; el.style.top = (b.r*16.66)+'%';
-            el.onpointerdown = (e) => { drag = true; active = b; start = {x:e.clientX, y:e.clientY}; acc = 0; };
+            el.onpointerdown = (e) => onBlockPointerDown(e, b, el);
             board.appendChild(el);
         });
     }
 
+    function updateSelectedVisual() {
+        document.querySelectorAll('.block.selected').forEach(el => el.classList.remove('selected'));
+        if (selected) {
+            const el = document.getElementById(selected.id);
+            if (el) el.classList.add('selected');
+        }
+    }
+
+    // ---------- Mouse / pointer dragging ----------
+
+    function onBlockPointerDown(e, b, el) {
+        if (locked) return;
+        // Switching blocks mid-interaction should commit any pending keyboard session first.
+        commitKeyboardSession();
+        selected = b; updateSelectedVisual();
+        drag = true; active = b; start = {x:e.clientX, y:e.clientY}; acc = 0; sessionMoved = false;
+        el.setPointerCapture(e.pointerId);
+    }
+
     window.onpointermove = (e) => {
-        if(!drag || !active) return;
+        if (locked || !drag || !active) return;
         let delta = active.type === 'h' ? e.clientX - start.x : e.clientY - start.y;
         acc += delta; start = {x:e.clientX, y:e.clientY};
-        if(Math.abs(acc) >= cellSize) {
+        if (Math.abs(acc) >= cellSize) {
             let dir = Math.sign(acc);
-            if(move(active, dir)) { moves++; mvsDisp.innerText = moves; acc -= dir * cellSize; check(); }
+            if (move(active, dir)) { sessionMoved = true; acc -= dir * cellSize; check(); }
             else { acc = dir * cellSize * 0.8; }
         }
     };
-    window.onpointerup = () => { drag = false; active = null; };
+
+    function endDrag() {
+        if (drag && sessionMoved) { moves++; mvsDisp.innerText = moves; }
+        drag = false; active = null; sessionMoved = false;
+    }
+
+    window.onpointerup = endDrag;
+    window.onpointercancel = endDrag;
+
+    // ---------- Shared move logic ----------
 
     function move(b, d) {
         let nr = b.r + (b.type==='v'?d:0), nc = b.c + (b.type==='h'?d:0);
@@ -113,25 +154,82 @@
         return true;
     }
 
-    function check() { if(blocks.find(b=>b.id==='hero').c === 4) win.style.display = 'flex'; }
+    function check() {
+        if (blocks.find(b=>b.id==='hero').c === 4) {
+            win.style.display = 'flex';
+            locked = true;
+            drag = false; active = null; sessionMoved = false;
+            kbActiveKey = null; kbSessionMoved = false;
+        }
+    }
+
+    // ---------- Keyboard controls ----------
+    // Arrow keys matching the selected block's orientation move it, one cell
+    // per keydown (holding the key auto-repeats, same feel as dragging).
+    // The move is only committed to the counter when you:
+    //   - press Enter, or
+    //   - press the opposite direction (which commits, then starts a new session)
+    // Arrow keys on the other axis do nothing for the current block; switch
+    // blocks with a mouse click instead (which also commits any pending move).
+
+    function commitKeyboardSession() {
+        if (kbSessionMoved) { moves++; mvsDisp.innerText = moves; }
+        kbActiveKey = null; kbSessionMoved = false;
+    }
+
+    window.addEventListener('keydown', (e) => {
+        if (locked) return;
+
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            commitKeyboardSession();
+            return;
+        }
+
+        const arrowKeys = ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'];
+        if (!arrowKeys.includes(e.key)) return;
+        e.preventDefault();
+        if (!selected) return;
+
+        const isHorizontalKey = (e.key === 'ArrowLeft' || e.key === 'ArrowRight');
+        const matchesOrientation = (selected.type === 'h' && isHorizontalKey) || (selected.type === 'v' && !isHorizontalKey);
+        if (!matchesOrientation) return; // wrong axis for this block, ignore
+
+        const dir = (e.key === 'ArrowRight' || e.key === 'ArrowDown') ? 1 : -1;
+
+        if (kbActiveKey && kbActiveKey !== e.key) {
+            // Direction reversed mid-session: commit the previous session as
+            // one move, then start a new one in the new direction.
+            commitKeyboardSession();
+        }
+        kbActiveKey = e.key;
+        if (move(selected, dir)) { kbSessionMoved = true; check(); }
+    });
+
     function resetLvl() { loadLvl(curIdx); }
     function nextLvl() { if(curIdx < levels.length-1) loadLvl(curIdx+1); else alert("Winner! More levels coming soon."); }
-    
+
     function importLvl() {
-    let snippet = prompt("Paste your level code:");
-    if(!snippet) return;
-    try {
-        let parsed = JSON.parse(snippet);
-        blocks = parsed;
-        moves = 0;
-        mvsDisp.innerText = 0;
-        win.style.display = 'none';
-        render();
-    } catch(e) { alert("Invalid Code"); }
-}
+        let snippet = prompt("Paste your level code:");
+        if(!snippet) return;
+        try {
+            let parsed = JSON.parse(snippet);
+            blocks = parsed;
+            moves = 0;
+            mvsDisp.innerText = 0;
+            win.style.display = 'none';
+            locked = false; drag = false; active = null; sessionMoved = false;
+            kbActiveKey = null; kbSessionMoved = false;
+            selected = blocks.find(b => b.id === 'hero') || blocks[0] || null;
+            render();
+        } catch(e) { alert("Invalid Code"); }
+    }
 
     window.onresize = render;
-    loadLvl(0);
+    (async () => {
+        await loadLevelsFromFile();
+        if (levels.length) loadLvl(0);
+    })();
 </script>
 </body>
 </html>
